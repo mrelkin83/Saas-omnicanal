@@ -17,6 +17,9 @@ import categoriesRoutes from './modules/categories/categories.routes.js';
 import productsRoutes from './modules/products/products.routes.js';
 import customersRoutes from './modules/customers/customers.routes.js';
 import conversationsRoutes from './modules/conversations/conversations.routes.js';
+import appointmentsRoutes from './modules/appointments/appointments.routes.js';
+import aiRoutes from './modules/ai/ai.routes.js';
+import devRoutes from './modules/dev/dev.routes.js';
 
 const PORT = parseInt(process.env['API_PORT'] ?? '3001', 10);
 const HOST = process.env['API_HOST'] ?? '0.0.0.0';
@@ -58,6 +61,9 @@ await app.register(async (api) => {
   await api.register(productsRoutes, { prefix: '/products' });
   await api.register(customersRoutes, { prefix: '/customers' });
   await api.register(conversationsRoutes, { prefix: '/conversations' });
+  await api.register(appointmentsRoutes, { prefix: '/appointments' });
+  await api.register(aiRoutes, { prefix: '/ai' });
+  await api.register(devRoutes, { prefix: '/dev' });
 }, { prefix: '/api' });
 
 // ── Start ─────────────────────────────────────────────────────────────────
