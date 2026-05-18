@@ -11,30 +11,33 @@
     "clean": "rimraf .next"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@hookform/resolvers": "^3.10.0",
     "@saas/shared": "workspace:*",
+    "@tanstack/react-query": "^5.66.1",
+    "clsx": "^2.1.1",
+    "framer-motion": "^11.18.2",
+    "lucide-react": "^0.468.0",
     "next": "14.2.22",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "framer-motion": "^11.18.2",
-    "lucide-react": "^0.468.0",
-    "tailwindcss": "^3.4.17",
-    "zustand": "^4.5.5",
-    "@tanstack/react-query": "^5.66.1",
     "react-hook-form": "^7.54.2",
+    "tailwind-merge": "^2.6.0",
+    "tailwindcss": "^3.4.17",
     "zod": "^3.24.1",
-    "@hookform/resolvers": "^3.10.0",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^2.6.0"
+    "zustand": "^4.5.5"
   },
   "devDependencies": {
     "@types/node": "^22.13.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "autoprefixer": "^10.4.20",
-    "postcss": "^8.5.2",
-    "typescript": "^5.7.3",
-    "rimraf": "^6.0.1",
     "eslint": "^9.19.0",
-    "eslint-config-next": "14.2.22"
+    "eslint-config-next": "14.2.22",
+    "postcss": "^8.5.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.3"
   }
 }

@@ -22,6 +22,8 @@ import ordersRoutes from './modules/orders/orders.routes.js';
 import quotesRoutes from './modules/quotes/quotes.routes.js';
 import reservationsRoutes from './modules/reservations/reservations.routes.js';
 import deliveriesRoutes from './modules/deliveries/deliveries.routes.js';
+import kanbanRoutes from './modules/kanban/kanban.routes.js';
+import departmentsRoutes from './modules/departments/departments.routes.js';
 import aiRoutes from './modules/ai/ai.routes.js';
 import devRoutes from './modules/dev/dev.routes.js';
 import channelsRoutes from './modules/channels/channels.routes.js';
@@ -88,6 +90,8 @@ await app.register(async (api) => {
   await api.register(quotesRoutes, { prefix: '/quotes' });
   await api.register(reservationsRoutes, { prefix: '/reservations' });
   await api.register(deliveriesRoutes, { prefix: '/deliveries' });
+  await api.register(kanbanRoutes, { prefix: '/kanban' });
+  await api.register(departmentsRoutes, { prefix: '/departments' });
   await api.register(aiRoutes, { prefix: '/ai' });
   await api.register(devRoutes, { prefix: '/dev' });
   await api.register(channelsRoutes, { prefix: '/channels' });

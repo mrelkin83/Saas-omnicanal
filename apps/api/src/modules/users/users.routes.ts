@@ -1,7 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import { createUserSchema, updateUserSchema } from './users.schemas.js';
 import { listUsers, getUserById, createUser, updateUser, deleteUser } from './users.service.js';
 import { requireAuth } from '../../middleware/require-auth.js';
+import { db, users, conversations, eq, and } from '@saas/db';
 
 const usersRoutes: FastifyPluginAsync = async (fastify) => {
   const adminGuard = { preHandler: [requireAuth('admin')] };
@@ -48,6 +50,40 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(404).send({ error: 'Not Found', message: 'Usuario no encontrado', code: 'NOT_FOUND' });
     }
     return reply.send(updated);
+  });
+
+  // PATCH /api/users/me/status — agent sets own status
+  const agentStatusSchema = z.object({ status: z.enum(['available', 'busy', 'away', 'offline']) });
+
+  fastify.patch('/me/status', authGuard, async (request, reply) => {
+    const { status } = agentStatusSchema.parse(request.body);
+    const [updated] = await db
+      .update(users)
+      .set({ agentStatus: status })
+      .where(and(eq(users.id, request.user!.sub), eq(users.tenantId, request.user!.tenantId)))
+      .returning({ id: users.id, agentStatus: users.agentStatus });
+    if (!updated) return reply.status(404).send({ error: 'Not Found', message: 'Usuario no encontrado', code: 'NOT_FOUND' });
+    return updated;
+  });
+
+  // POST /api/users/transfer — transfer conversation to another agent
+  const transferSchema = z.object({ conversationId: z.string().uuid(), toUserId: z.string().uuid() });
+
+  fastify.post('/transfer', authGuard, async (request, reply) => {
+    const tenantId = request.user!.tenantId;
+    const { conversationId, toUserId } = transferSchema.parse(request.body);
+
+    const [agent] = await db.select({ id: users.id }).from(users).where(and(eq(users.id, toUserId), eq(users.tenantId, tenantId)));
+    if (!agent) return reply.status(404).send({ error: 'Not Found', message: 'Agente no encontrado', code: 'NOT_FOUND' });
+
+    const [updated] = await db
+      .update(conversations)
+      .set({ assignedUserId: toUserId, updatedAt: new Date() })
+      .where(and(eq(conversations.id, conversationId), eq(conversations.tenantId, tenantId)))
+      .returning({ id: conversations.id, assignedUserId: conversations.assignedUserId });
+
+    if (!updated) return reply.status(404).send({ error: 'Not Found', message: 'Conversación no encontrada', code: 'NOT_FOUND' });
+    return updated;
   });
 
   // DELETE /api/users/:id  — owner only

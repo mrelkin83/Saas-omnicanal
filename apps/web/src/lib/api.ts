@@ -225,6 +225,41 @@ export const api = {
       request<Delivery>(`/api/deliveries/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
   },
 
+  kanban: {
+    board: (token: string) =>
+      request<{ columns: KanbanColumn[]; unassigned: KanbanConversation[] }>('/api/kanban/board', { token }),
+    columns: (token: string) => request<KanbanColumn[]>('/api/kanban/columns', { token }),
+    createColumn: (token: string, data: { name: string; color?: string; sortOrder?: number }) =>
+      request<KanbanColumn>('/api/kanban/columns', { method: 'POST', token, body: JSON.stringify(data) }),
+    patchColumn: (token: string, id: string, data: Partial<{ name: string; color: string; sortOrder: number; isFinal: boolean }>) =>
+      request<KanbanColumn>(`/api/kanban/columns/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+    deleteColumn: (token: string, id: string) =>
+      request<void>(`/api/kanban/columns/${id}`, { method: 'DELETE', token }),
+    move: (token: string, data: { conversationId: string; columnId: string; assignedUserId?: string }) =>
+      request<{ id: string; kanbanColumnId: string | null }>('/api/kanban/move', { method: 'POST', token, body: JSON.stringify(data) }),
+  },
+
+  departments: {
+    list: (token: string) => request<Department[]>('/api/departments', { token }),
+    create: (token: string, data: { name: string; description?: string; autoAssign?: boolean }) =>
+      request<Department>('/api/departments', { method: 'POST', token, body: JSON.stringify(data) }),
+    patch: (token: string, id: string, data: Partial<{ name: string; autoAssign: boolean; isActive: boolean }>) =>
+      request<Department>(`/api/departments/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+    delete: (token: string, id: string) =>
+      request<void>(`/api/departments/${id}`, { method: 'DELETE', token }),
+    addMember: (token: string, deptId: string, userId: string, role?: string) =>
+      request<DepartmentMember>(`/api/departments/${deptId}/members`, { method: 'POST', token, body: JSON.stringify({ userId, role }) }),
+    removeMember: (token: string, deptId: string, userId: string) =>
+      request<void>(`/api/departments/${deptId}/members/${userId}`, { method: 'DELETE', token }),
+  },
+
+  agentStatus: {
+    set: (token: string, status: 'available' | 'busy' | 'away' | 'offline') =>
+      request<{ id: string; agentStatus: string | null }>('/api/users/me/status', { method: 'PATCH', token, body: JSON.stringify({ status }) }),
+    transfer: (token: string, conversationId: string, toUserId: string) =>
+      request<{ id: string; assignedUserId: string | null }>('/api/users/transfer', { method: 'POST', token, body: JSON.stringify({ conversationId, toUserId }) }),
+  },
+
   appointments: {
     list: (token: string, params?: { phone?: string }) => {
       const qs = params?.phone ? `?phone=${encodeURIComponent(params.phone)}` : '';
@@ -289,6 +324,29 @@ export interface Delivery {
 export interface Appointment {
   id: string; serviceName: string; status: string | null; scheduledAt: string;
   durationMinutes: number; notes: string | null; createdAt: string; customerId: string;
+}
+
+export interface KanbanColumn {
+  id: string; name: string; color: string | null; sortOrder: number | null;
+  isFinal: boolean | null; tenantId: string;
+  conversations?: KanbanConversation[];
+}
+
+export interface KanbanConversation {
+  id: string; customerId: string; channel: string; status: string | null;
+  assignedUserId: string | null; kanbanColumnId: string | null;
+  unreadCount: number | null; lastMessageAt: string | null;
+}
+
+export interface Department {
+  id: string; name: string; description: string | null; autoAssign: boolean | null;
+  isActive: boolean | null; queueOrder: number | null; createdAt: string;
+  members: DepartmentMember[];
+}
+
+export interface DepartmentMember {
+  departmentId: string; userId: string; role: string | null;
+  fullName: string | null; email: string; agentStatus: string | null;
 }
 
 export interface ConversationDetail {

@@ -17,7 +17,9 @@ const NAV_ITEMS = [
   { href: '/dashboard/quotes', label: 'Cotizaciones', icon: '📋' },
   { href: '/dashboard/deliveries', label: 'Domicilios', icon: '🛵' },
   { href: '/dashboard/customers', label: 'Clientes', icon: '👥' },
+  { href: '/dashboard/kanban', label: 'Kanban', icon: '🗂️' },
   { href: '/dashboard/team', label: 'Equipo', icon: '🧑‍💼' },
+  { href: '/dashboard/departments', label: 'Departamentos', icon: '🏢' },
   { href: '/dashboard/settings', label: 'Configuración', icon: '⚙️' },
 ];
 

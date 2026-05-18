@@ -1,9 +1,10 @@
 import type { NormalizedMessage } from './channel-driver.interface.js';
-import { db, tenants, channelSessions, conversationState, eq, and } from '@saas/db';
+import { db, tenants, channelSessions, conversations, conversationState, eq, and } from '@saas/db';
 import { findOrCreateCustomer, findOrCreateConversation, saveInboundMessage, saveOutboundMessage } from '../../conversations/conversations.messaging.js';
 import { runAIEngine } from '../../ai/ai.engine.js';
 import { sendMessage } from './channel-manager.js';
 import { pushInboxEvent } from '../../conversations/inbox.sse.js';
+import { assignRoundRobin } from './round-robin.js';
 
 export async function handleIncomingMessage(msg: NormalizedMessage): Promise<void> {
   const { tenantId, channel, from, text, externalId } = msg;
@@ -20,6 +21,14 @@ export async function handleIncomingMessage(msg: NormalizedMessage): Promise<voi
 
   const customer = await findOrCreateCustomer(tenantId, from);
   const conversation = await findOrCreateConversation(tenantId, customer.id, channel, session?.id ?? null);
+
+  // Auto-assign to available agent if not yet assigned
+  if (!conversation.assignedUserId) {
+    const agentId = await assignRoundRobin(tenantId);
+    if (agentId) {
+      await db.update(conversations).set({ assignedUserId: agentId, updatedAt: new Date() }).where(eq(conversations.id, conversation.id));
+    }
+  }
 
   const inbound = await saveInboundMessage(tenantId, conversation.id, customer.id, text, externalId);
 
