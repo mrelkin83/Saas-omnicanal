@@ -81,3 +81,25 @@ export async function deleteInstance(instanceName: string): Promise<void> {
 export async function fetchInstances(): Promise<{ instance: { instanceName: string; status: string } }[]> {
   return evoRequest<{ instance: { instanceName: string; status: string } }[]>('GET', '/instance/fetchInstances');
 }
+
+export interface EvoGroup {
+  id: string;
+  subject: string;
+  subjectOwner: string;
+  subjectTime: number;
+  size: number;
+  creation: number;
+  desc?: string;
+}
+
+export async function fetchGroups(instanceName: string): Promise<EvoGroup[]> {
+  return evoRequest<EvoGroup[]>('GET', `/group/fetchAllGroups/${instanceName}?getParticipants=false`);
+}
+
+export async function createGroup(instanceName: string, subject: string, participants: string[]): Promise<{ groupJid: string; inviteCode: string }> {
+  return evoRequest<{ groupJid: string; inviteCode: string }>('POST', `/group/create/${instanceName}`, { subject, participants });
+}
+
+export async function addGroupParticipants(instanceName: string, groupJid: string, participants: string[]): Promise<unknown> {
+  return evoRequest<unknown>('PUT', `/group/updateParticipant/${instanceName}`, { groupJid, action: 'add', participants });
+}

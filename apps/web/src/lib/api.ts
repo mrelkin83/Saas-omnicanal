@@ -260,6 +260,42 @@ export const api = {
       request<{ id: string; assignedUserId: string | null }>('/api/users/transfer', { method: 'POST', token, body: JSON.stringify({ conversationId, toUserId }) }),
   },
 
+  campaigns: {
+    list: (token: string) => request<Campaign[]>('/api/campaigns', { token }),
+    get: (token: string, id: string) => request<Campaign>(`/api/campaigns/${id}`, { token }),
+    create: (token: string, data: { name: string; listId: string; messages: { text: string }[]; scheduledAt?: string }) =>
+      request<Campaign>('/api/campaigns', { method: 'POST', token, body: JSON.stringify(data) }),
+    patch: (token: string, id: string, data: Partial<{ status: string; scheduledAt: string }>) =>
+      request<Campaign>(`/api/campaigns/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+    delete: (token: string, id: string) => request<void>(`/api/campaigns/${id}`, { method: 'DELETE', token }),
+  },
+
+  contactLists: {
+    list: (token: string) => request<ContactList[]>('/api/contact-lists', { token }),
+    create: (token: string, data: { name: string; description?: string }) =>
+      request<ContactList>('/api/contact-lists', { method: 'POST', token, body: JSON.stringify(data) }),
+    delete: (token: string, id: string) => request<void>(`/api/contact-lists/${id}`, { method: 'DELETE', token }),
+    entries: (token: string, id: string) => request<ContactEntry[]>(`/api/contact-lists/${id}/entries`, { token }),
+  },
+
+  groups: {
+    list: (token: string) => request<WaGroup[]>('/api/groups', { token }),
+    create: (token: string, data: { subject: string; participants: string[] }) =>
+      request<{ groupJid: string }>('/api/groups', { method: 'POST', token, body: JSON.stringify(data) }),
+    addParticipants: (token: string, groupId: string, participants: string[]) =>
+      request<unknown>(`/api/groups/${groupId}/participants`, { method: 'POST', token, body: JSON.stringify({ participants }) }),
+  },
+
+  integrations: {
+    list: (token: string) => request<Integration[]>('/api/integrations', { token }),
+    getConfig: (token: string, id: string) => request<Integration>(`/api/integrations/${id}/config`, { token }),
+    create: (token: string, data: { provider: string; category: string; config: Record<string, unknown>; isActive?: boolean; isPrimary?: boolean }) =>
+      request<Integration>('/api/integrations', { method: 'POST', token, body: JSON.stringify(data) }),
+    patch: (token: string, id: string, data: Partial<{ isActive: boolean; isPrimary: boolean; config: Record<string, unknown> }>) =>
+      request<Integration>(`/api/integrations/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+    delete: (token: string, id: string) => request<void>(`/api/integrations/${id}`, { method: 'DELETE', token }),
+  },
+
   appointments: {
     list: (token: string, params?: { phone?: string }) => {
       const qs = params?.phone ? `?phone=${encodeURIComponent(params.phone)}` : '';
@@ -354,4 +390,30 @@ export interface ConversationDetail {
   customerId: string; unreadCount: number | null;
   lastMessageAt: string | null; createdAt: string;
   messages: Message[];
+}
+
+export interface Campaign {
+  id: string; name: string; status: string | null;
+  scheduledAt: string | null; totalContacts: number | null;
+  sentCount: number | null; failedCount: number | null;
+  createdAt: string;
+}
+
+export interface ContactList {
+  id: string; name: string; description: string | null;
+  contactCount: number | null; createdAt: string;
+}
+
+export interface ContactEntry {
+  id: string; phone: string; name: string | null;
+}
+
+export interface Integration {
+  id: string; provider: string; category: string;
+  isActive: boolean | null; isPrimary: boolean | null;
+  config: Record<string, unknown>; createdAt: string; updatedAt: string;
+}
+
+export interface WaGroup {
+  id: string; subject: string; size: number; desc?: string | undefined;
 }

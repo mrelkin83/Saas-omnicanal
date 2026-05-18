@@ -24,6 +24,11 @@ import reservationsRoutes from './modules/reservations/reservations.routes.js';
 import deliveriesRoutes from './modules/deliveries/deliveries.routes.js';
 import kanbanRoutes from './modules/kanban/kanban.routes.js';
 import departmentsRoutes from './modules/departments/departments.routes.js';
+import contactListsRoutes from './modules/contact-lists/contact-lists.routes.js';
+import campaignsRoutes from './modules/campaigns/campaigns.routes.js';
+import groupsRoutes from './modules/groups/groups.routes.js';
+import integrationsRoutes from './modules/integrations/integrations.routes.js';
+import { startCampaignSender, stopCampaignSender } from './jobs/campaign-sender.job.js';
 import aiRoutes from './modules/ai/ai.routes.js';
 import devRoutes from './modules/dev/dev.routes.js';
 import channelsRoutes from './modules/channels/channels.routes.js';
@@ -62,6 +67,7 @@ registerDriver(tiktokDriver);
 whatsappDriver.onIncoming(handleIncomingMessage);
 
 // ── Plugins (order matters) ────────────────────────────────────────────────
+await app.register((await import('@fastify/multipart')).default, { limits: { fileSize: 10 * 1024 * 1024 } });
 await app.register(errorHandlerPlugin);
 await app.register(corsPlugin);
 await app.register(swaggerPlugin);
@@ -92,6 +98,10 @@ await app.register(async (api) => {
   await api.register(deliveriesRoutes, { prefix: '/deliveries' });
   await api.register(kanbanRoutes, { prefix: '/kanban' });
   await api.register(departmentsRoutes, { prefix: '/departments' });
+  await api.register(contactListsRoutes, { prefix: '/contact-lists' });
+  await api.register(campaignsRoutes, { prefix: '/campaigns' });
+  await api.register(groupsRoutes, { prefix: '/groups' });
+  await api.register(integrationsRoutes, { prefix: '/integrations' });
   await api.register(aiRoutes, { prefix: '/ai' });
   await api.register(devRoutes, { prefix: '/dev' });
   await api.register(channelsRoutes, { prefix: '/channels' });
@@ -104,6 +114,7 @@ const start = async (): Promise<void> => {
     await app.listen({ port: PORT, host: HOST });
     startInstagramPoller();
     startTikTokScraper();
+    startCampaignSender();
   } catch (err) {
     app.log.error(err);
     process.exit(1);
@@ -113,6 +124,7 @@ const start = async (): Promise<void> => {
 const stop = async (): Promise<void> => {
   await stopInstagramPoller();
   await stopTikTokScraper();
+  await stopCampaignSender();
   await app.close();
 };
 

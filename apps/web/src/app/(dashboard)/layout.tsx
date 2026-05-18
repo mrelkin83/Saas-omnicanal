@@ -20,6 +20,10 @@ const NAV_ITEMS = [
   { href: '/dashboard/kanban', label: 'Kanban', icon: '🗂️' },
   { href: '/dashboard/team', label: 'Equipo', icon: '🧑‍💼' },
   { href: '/dashboard/departments', label: 'Departamentos', icon: '🏢' },
+  { href: '/dashboard/campaigns', label: 'Campañas', icon: '📢' },
+  { href: '/dashboard/contacts', label: 'Contactos', icon: '📋' },
+  { href: '/dashboard/groups', label: 'Grupos WA', icon: '💬' },
+  { href: '/dashboard/settings/integrations', label: 'Integraciones', icon: '🔌' },
   { href: '/dashboard/settings', label: 'Configuración', icon: '⚙️' },
 ];
 
