@@ -4,13 +4,11 @@ import { verCatalogoProcessor } from './processors/ver-catalogo.processor.js';
 import { crearCitaProcessor, verCitasProcessor } from './processors/crear-cita.processor.js';
 import { verSlotsProcessor } from './processors/ver-slots.processor.js';
 import { infoNegocioProcessor } from './processors/info-negocio.processor.js';
-import {
-  escalamientoProcessor,
-  agregarCarritoProcessor,
-  crearPedidoProcessor,
-  cotizarProcessor,
-  crearReservaProcessor,
-} from './processors/stub.processor.js';
+import { enviarPagoProcessor } from './processors/enviar-pago.processor.js';
+import { agregarCarritoProcessor, verCarritoProcessor, crearPedidoProcessor, verEstadoPedidoProcessor } from './processors/pedido.processor.js';
+import { cotizarProcessor, verCotizacionProcessor } from './processors/cotizar.processor.js';
+import { crearReservaProcessor, verReservasProcessor, cancelarReservaProcessor } from './processors/reservar.processor.js';
+import { escalamientoProcessor } from './processors/stub.processor.js';
 
 export async function routeAction(
   accion: string,
@@ -45,21 +43,34 @@ export async function routeAction(
       return escalamientoProcessor();
 
     case 'AGREGAR_CARRITO':
+      return agregarCarritoProcessor(tenant.id, customerId, params);
+
     case 'VER_CARRITO':
-      return agregarCarritoProcessor();
+      return verCarritoProcessor(tenant.id, customerId);
 
     case 'CREAR_PEDIDO':
+      return crearPedidoProcessor(tenant.id, customerId);
+
     case 'VER_ESTADO_PEDIDO':
-      return crearPedidoProcessor();
+      return verEstadoPedidoProcessor(tenant.id, customerId, params);
 
     case 'COTIZAR':
+      return cotizarProcessor(tenant.id, customerId, params);
+
     case 'VER_COTIZACION':
-      return cotizarProcessor();
+      return verCotizacionProcessor(tenant.id, customerId, params);
 
     case 'CREAR_RESERVA':
+      return crearReservaProcessor(tenant.id, customerId, params);
+
     case 'VER_RESERVAS':
+      return verReservasProcessor(tenant.id, customerId);
+
     case 'CANCELAR_RESERVA':
-      return crearReservaProcessor();
+      return cancelarReservaProcessor(tenant.id, customerId, params);
+
+    case 'ENVIAR_PAGO':
+      return enviarPagoProcessor(tenant.id, customerId, params);
 
     default:
       return 'No reconozco esa acción. ¿En qué más puedo ayudarte?';

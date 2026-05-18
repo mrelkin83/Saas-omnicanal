@@ -186,6 +186,52 @@ export const api = {
       request<void>(`/api/channels/tiktok/${id}`, { method: 'DELETE', token }),
   },
 
+  orders: {
+    list: (token: string, params?: { status?: string }) => {
+      const qs = params?.status ? `?status=${params.status}` : '';
+      return request<Order[]>(`/api/orders${qs}`, { token });
+    },
+    get: (token: string, id: string) => request<Order & { items: unknown[]; payments: unknown[]; deliveries: unknown[] }>(`/api/orders/${id}`, { token }),
+    patch: (token: string, id: string, data: Partial<{ status: string; paymentStatus: string; notes: string }>) =>
+      request<Order>(`/api/orders/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+  },
+
+  quotes: {
+    list: (token: string, params?: { status?: string }) => {
+      const qs = params?.status ? `?status=${params.status}` : '';
+      return request<Quote[]>(`/api/quotes${qs}`, { token });
+    },
+    patch: (token: string, id: string, data: Partial<{ status: string; total: number; notes: string }>) =>
+      request<Quote>(`/api/quotes/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+  },
+
+  reservations: {
+    list: (token: string, params?: { status?: string }) => {
+      const qs = params?.status ? `?status=${params.status}` : '';
+      return request<Reservation[]>(`/api/reservations${qs}`, { token });
+    },
+    patch: (token: string, id: string, data: Partial<{ status: string; notes: string }>) =>
+      request<Reservation>(`/api/reservations/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+  },
+
+  deliveries: {
+    list: (token: string, params?: { status?: string }) => {
+      const qs = params?.status ? `?status=${params.status}` : '';
+      return request<Delivery[]>(`/api/deliveries${qs}`, { token });
+    },
+    create: (token: string, data: { orderId: string; address: string; courierName?: string; trackingNumber?: string }) =>
+      request<Delivery>('/api/deliveries', { method: 'POST', token, body: JSON.stringify(data) }),
+    patch: (token: string, id: string, data: Partial<{ status: string; trackingNumber: string; courierName: string }>) =>
+      request<Delivery>(`/api/deliveries/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
+  },
+
+  appointments: {
+    list: (token: string, params?: { phone?: string }) => {
+      const qs = params?.phone ? `?phone=${encodeURIComponent(params.phone)}` : '';
+      return request<Appointment[]>(`/api/appointments${qs}`, { token });
+    },
+  },
+
   conversations: {
     list: (token: string, params?: { status?: string; channel?: string; withCustomer?: boolean }) => {
       const qs = new URLSearchParams();
@@ -215,6 +261,34 @@ export interface Message {
   id: string; conversationId: string; direction: string;
   senderType: string; type: string | null; content: string | null;
   createdAt: string;
+}
+
+export interface Order {
+  id: string; orderNumber: string; status: string | null; paymentStatus: string | null;
+  total: string; createdAt: string; customerId: string;
+  customerName: string | null; customerPhone: string | null;
+}
+
+export interface Quote {
+  id: string; quoteNumber: string; status: string | null; total: string;
+  validUntil: string | null; createdAt: string; customerId: string; customerName: string | null;
+}
+
+export interface Reservation {
+  id: string; status: string | null; reservedDate: string; reservedTime: string;
+  partySize: number | null; notes: string | null; createdAt: string;
+  customerId: string; customerName: string | null; customerPhone: string | null;
+}
+
+export interface Delivery {
+  id: string; status: string | null; address: string; courierName: string | null;
+  trackingNumber: string | null; estimatedAt: string | null; deliveredAt: string | null;
+  createdAt: string; orderId: string; orderNumber: string | null; customerName: string | null;
+}
+
+export interface Appointment {
+  id: string; serviceName: string; status: string | null; scheduledAt: string;
+  durationMinutes: number; notes: string | null; createdAt: string; customerId: string;
 }
 
 export interface ConversationDetail {
