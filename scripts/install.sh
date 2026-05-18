@@ -63,6 +63,10 @@ show_banner() {
 
 # ── Recolección de variables ───────────────────────────────────────────────────
 collect_config() {
+  # Cuando el script llega via curl | bash, stdin es la pipe (ya agotada).
+  # Redirigimos stdin desde /dev/tty para que los read lean del terminal real.
+  exec < /dev/tty
+
   header "Configuración inicial"
   echo -e "Completa los siguientes datos. Presiona Enter para aceptar el valor por defecto."
   echo ""
@@ -89,9 +93,9 @@ collect_config() {
   [[ ${#SA_PASSWORD} -lt 8 ]] && error "La contraseña debe tener al menos 8 caracteres."
 
   # OpenAI
-  ask "OpenAI API Key (sk-...) — o Groq API Key si vas a usar Groq:"
+  ask "OpenAI API Key (sk-... o gsk-... para Groq):"
   read -r OPENAI_API_KEY
-  [[ -z "$OPENAI_API_KEY" ]] && warn "Sin API Key de IA, el agente no funcionará. Configúrala luego en .env"
+  [[ -z "$OPENAI_API_KEY" ]] && warn "Sin API Key de IA el agente no funcionará. Configúrala luego en .env"
 
   ask "Modelo LLM a usar [gpt-4o-mini]:"
   read -r LLM_MODEL
