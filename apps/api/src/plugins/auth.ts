@@ -9,6 +9,7 @@ export interface JwtPayload {
   tenantId: string;
   role: 'owner' | 'admin' | 'agent';
   email: string;
+  isSuperAdmin?: boolean | undefined;
 }
 
 declare module 'fastify' {

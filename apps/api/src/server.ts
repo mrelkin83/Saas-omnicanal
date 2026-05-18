@@ -41,6 +41,15 @@ import { tiktokDriver } from './modules/channels/drivers/tiktok/tiktok.driver.js
 import { handleIncomingMessage } from './modules/channels/core/incoming-handler.js';
 import { startInstagramPoller, stopInstagramPoller } from './jobs/instagram-poller.job.js';
 import { startTikTokScraper, stopTikTokScraper } from './jobs/tiktok-scraper.job.js';
+import { startDemoExpiryJob, stopDemoExpiryJob } from './jobs/demo-expiry.job.js';
+import superadminAuthRoutes from './modules/superadmin/auth.routes.js';
+import superadminTenantsRoutes from './modules/superadmin/tenants.routes.js';
+import superadminPlansRoutes from './modules/superadmin/plans.routes.js';
+import superadminDemosRoutes from './modules/superadmin/demos.routes.js';
+import superadminResellersRoutes from './modules/superadmin/resellers.routes.js';
+import superadminDashboardRoutes from './modules/superadmin/dashboard.routes.js';
+import superadminMonitorRoutes from './modules/superadmin/monitor.routes.js';
+import superadminAuditRoutes from './modules/superadmin/audit.routes.js';
 
 const PORT = parseInt(process.env['API_PORT'] ?? '3001', 10);
 const HOST = process.env['API_HOST'] ?? '0.0.0.0';
@@ -108,6 +117,18 @@ await app.register(async (api) => {
   await api.register(webhooksRoutes, { prefix: '/webhooks' });
 }, { prefix: '/api' });
 
+// ── SuperAdmin Routes ─────────────────────────────────────────────────────
+await app.register(async (sa) => {
+  await sa.register(superadminAuthRoutes, { prefix: '/auth' });
+  await sa.register(superadminTenantsRoutes, { prefix: '/tenants' });
+  await sa.register(superadminPlansRoutes, { prefix: '/plans' });
+  await sa.register(superadminDemosRoutes, { prefix: '/demos' });
+  await sa.register(superadminResellersRoutes, { prefix: '/resellers' });
+  await sa.register(superadminDashboardRoutes, { prefix: '/dashboard' });
+  await sa.register(superadminMonitorRoutes, { prefix: '/monitor' });
+  await sa.register(superadminAuditRoutes, { prefix: '/audit' });
+}, { prefix: '/api/superadmin' });
+
 // ── Start ─────────────────────────────────────────────────────────────────
 const start = async (): Promise<void> => {
   try {
@@ -115,6 +136,7 @@ const start = async (): Promise<void> => {
     startInstagramPoller();
     startTikTokScraper();
     startCampaignSender();
+    startDemoExpiryJob();
   } catch (err) {
     app.log.error(err);
     process.exit(1);
@@ -125,6 +147,7 @@ const stop = async (): Promise<void> => {
   await stopInstagramPoller();
   await stopTikTokScraper();
   await stopCampaignSender();
+  await stopDemoExpiryJob();
   await app.close();
 };
 
