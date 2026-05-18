@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { db, payments, customers, eq, and } from '@saas/db';
 import { createPaymentLink } from '../../../lib/wompi-client.js';
+import { getTenantWompiCredentials, WompiNotConfiguredError } from '../../../lib/wompi-tenant.js';
 
 const paramsSchema = z.object({
   monto: z.coerce.number().positive(),
@@ -17,6 +18,16 @@ export async function enviarPagoProcessor(
     return 'No pude entender el monto o el concepto del pago. ¿Puedes indicarme cuánto es y por qué concepto?';
   }
 
+  let creds: Awaited<ReturnType<typeof getTenantWompiCredentials>>;
+  try {
+    creds = await getTenantWompiCredentials(tenantId);
+  } catch (err) {
+    if (err instanceof WompiNotConfiguredError) {
+      return 'Para recibir pagos debes configurar tu cuenta Wompi en *Configuración → Integraciones*. Una vez activa podremos generar links de pago directamente desde la conversación.';
+    }
+    return 'Hubo un problema accediendo a la configuración de pagos. Contacta al administrador.';
+  }
+
   const { monto, concepto } = parsed.data;
   const amountInCents = Math.round(monto * 100);
   const reference = `${tenantId.slice(0, 8)}-${customerId.slice(0, 8)}-${Date.now()}`;
@@ -26,12 +37,12 @@ export async function enviarPagoProcessor(
     .from(customers)
     .where(and(eq(customers.id, customerId), eq(customers.tenantId, tenantId)));
 
-  const linkParams: Parameters<typeof createPaymentLink>[0] = { reference, amountInCents };
+  const linkParams: Parameters<typeof createPaymentLink>[1] = { reference, amountInCents };
   if (customer?.email) linkParams.customerEmail = customer.email;
 
   let link: { id: string; url: string };
   try {
-    link = await createPaymentLink(linkParams);
+    link = await createPaymentLink(creds, linkParams);
   } catch {
     return 'Hubo un problema generando el link de pago. Por favor intenta de nuevo o contáctanos directamente.';
   }
@@ -48,7 +59,11 @@ export async function enviarPagoProcessor(
     metadata: { concepto, reference },
   });
 
-  const formattedAmount = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(monto);
+  const formattedAmount = new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  }).format(monto);
 
   return `💳 *Link de pago generado*\n\nConcepto: ${concepto}\nMonto: ${formattedAmount}\n\n👉 ${link.url}\n\nEste link es de un solo uso. Una vez realices el pago te confirmaremos por aquí.`;
 }

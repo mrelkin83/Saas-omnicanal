@@ -4,7 +4,9 @@ import { requireAuth } from '../../middleware/require-auth.js';
 import { db, integrations, eq, and } from '@saas/db';
 import { encrypt, decrypt } from '../../lib/crypto.js';
 
-const SENSITIVE_FIELDS = ['apiKey', 'apiSecret', 'privateKey', 'accessToken', 'password', 'secret'];
+const SENSITIVE_FIELDS = ['apiKey', 'apiSecret', 'privateKey', 'accessToken', 'password', 'secret', 'eventSecret'];
+
+const API_BASE_URL = process.env['API_BASE_URL'] ?? '';
 
 const createIntegrationSchema = z.object({
   provider: z.string().min(1).max(50),
@@ -58,7 +60,13 @@ const integrationsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', { preHandler: [requireAuth('admin')] }, async (request) => {
     const tenantId = request.user!.tenantId;
     const rows = await db.select().from(integrations).where(eq(integrations.tenantId, tenantId));
-    return rows.map((r) => ({ ...r, config: maskSensitive(r.config as Record<string, unknown>) }));
+    return rows.map((r) => ({
+      ...r,
+      config: maskSensitive(r.config as Record<string, unknown>),
+      ...(r.provider === 'wompi'
+        ? { webhookUrl: `${API_BASE_URL}/api/webhooks/wompi/${r.tenantId}` }
+        : {}),
+    }));
   });
 
   fastify.get('/:id/config', { preHandler: [requireAuth('owner')] }, async (request, reply) => {

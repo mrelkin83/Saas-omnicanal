@@ -1,17 +1,11 @@
 import { createHmac } from 'node:crypto';
 
-const ENV = process.env['WOMPI_ENV'] ?? 'sandbox';
-const PUBLIC_KEY = process.env['WOMPI_SANDBOX_PUBLIC_KEY'] ?? '';
-const PRIVATE_KEY = process.env['WOMPI_SANDBOX_PRIVATE_KEY'] ?? '';
-const EVENT_SECRET = process.env['WOMPI_EVENT_SECRET'] ?? '';
-
-const BASE_URL = ENV === 'production'
-  ? 'https://production.wompi.co/v1'
-  : 'https://sandbox.wompi.co/v1';
-
-const WIDGET_URL = ENV === 'production'
-  ? 'https://checkout.wompi.co/p/'
-  : 'https://checkout.wompi.co/p/';
+export interface WompiCredentials {
+  publicKey: string;
+  privateKey: string;
+  eventSecret: string;
+  environment: 'sandbox' | 'production';
+}
 
 interface WompiTransaction {
   id: string;
@@ -23,12 +17,25 @@ interface WompiTransaction {
   payment_method_type: string | null;
 }
 
-async function wompiRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+const WIDGET_URL = 'https://checkout.wompi.co/p/';
+
+function apiBaseUrl(environment: string): string {
+  return environment === 'production'
+    ? 'https://production.wompi.co/v1'
+    : 'https://sandbox.wompi.co/v1';
+}
+
+async function wompiRequest<T>(
+  creds: WompiCredentials,
+  method: string,
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const res = await fetch(`${apiBaseUrl(creds.environment)}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${PRIVATE_KEY}`,
+      Authorization: `Bearer ${creds.privateKey}`,
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
@@ -41,14 +48,17 @@ async function wompiRequest<T>(method: string, path: string, body?: unknown): Pr
   return res.json() as Promise<T>;
 }
 
-export async function createPaymentLink(params: {
-  reference: string;
-  amountInCents: number;
-  currency?: string;
-  expiresAt?: string;
-  customerEmail?: string;
-  redirectUrl?: string;
-}): Promise<{ id: string; url: string }> {
+export async function createPaymentLink(
+  creds: WompiCredentials,
+  params: {
+    reference: string;
+    amountInCents: number;
+    currency?: string;
+    expiresAt?: string;
+    customerEmail?: string;
+    redirectUrl?: string;
+  },
+): Promise<{ id: string; url: string }> {
   const payload = {
     name: params.reference,
     description: params.reference,
@@ -61,19 +71,28 @@ export async function createPaymentLink(params: {
     customer_data: params.customerEmail ? { customer_email: params.customerEmail } : undefined,
   };
 
-  const res = await wompiRequest<{ data: { id: string } }>('POST', '/payment_links', payload);
+  const res = await wompiRequest<{ data: { id: string } }>(creds, 'POST', '/payment_links', payload);
   const linkId = res.data.id;
-  return { id: linkId, url: `${WIDGET_URL}?publicKey=${PUBLIC_KEY}&currency=${payload.currency}&amountInCents=${payload.amount_in_cents}&reference=${params.reference}` };
+  const url = `${WIDGET_URL}?publicKey=${creds.publicKey}&currency=${payload.currency}&amountInCents=${payload.amount_in_cents}&reference=${params.reference}`;
+  return { id: linkId, url };
 }
 
-export async function getTransaction(transactionId: string): Promise<WompiTransaction> {
-  const res = await wompiRequest<{ data: WompiTransaction }>('GET', `/transactions/${transactionId}`);
+export async function getTransaction(
+  creds: WompiCredentials,
+  transactionId: string,
+): Promise<WompiTransaction> {
+  const res = await wompiRequest<{ data: WompiTransaction }>(creds, 'GET', `/transactions/${transactionId}`);
   return res.data;
 }
 
-export function verifyWompiSignature(payload: string, checksum: string, timestamp: string): boolean {
-  if (!EVENT_SECRET) return true; // skip in dev if not configured
-  const toSign = `${payload}${timestamp}${EVENT_SECRET}`;
-  const expected = createHmac('sha256', EVENT_SECRET).update(toSign).digest('hex');
+export function verifyWompiSignature(
+  payload: string,
+  checksum: string,
+  timestamp: string,
+  eventSecret: string,
+): boolean {
+  if (!eventSecret) return true;
+  const toSign = `${payload}${timestamp}${eventSecret}`;
+  const expected = createHmac('sha256', eventSecret).update(toSign).digest('hex');
   return expected === checksum;
 }

@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { db, payments, orders, eq } from '@saas/db';
+import { db, payments, orders, tenants, eq } from '@saas/db';
 import { verifyWompiSignature } from '../../lib/wompi-client.js';
+import { getTenantWompiCredentials, WompiNotConfiguredError } from '../../lib/wompi-tenant.js';
 
 interface WompiWebhookPayload {
   event: string;
@@ -12,19 +13,47 @@ interface WompiWebhookPayload {
       amount_in_cents: number;
     };
   };
-  sent_at?: string;
-  timestamp?: number;
-  signature?: { checksum?: string; properties?: string[] };
+  sent_at?: string | undefined;
+  timestamp?: number | undefined;
+  signature?: { checksum?: string | undefined; properties?: string[] | undefined } | undefined;
 }
 
-export async function wompiWebhookHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+export async function wompiWebhookHandler(
+  request: FastifyRequest<{ Params: { tenantId: string } }>,
+  reply: FastifyReply,
+): Promise<void> {
+  const { tenantId } = request.params;
   const body = request.body as WompiWebhookPayload;
   const rawBody = JSON.stringify(body);
 
-  // Verify signature when configured
+  // Ensure tenant exists
+  const [tenant] = await db
+    .select({ id: tenants.id })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+
+  if (!tenant) {
+    reply.status(404).send({ error: 'Not Found' });
+    return;
+  }
+
+  // Fetch tenant Wompi credentials to verify signature
+  let eventSecret = '';
+  try {
+    const creds = await getTenantWompiCredentials(tenantId);
+    eventSecret = creds.eventSecret;
+  } catch (err) {
+    if (!(err instanceof WompiNotConfiguredError)) {
+      reply.status(500).send({ error: 'Internal error' });
+      return;
+    }
+    // Tenant has no active Wompi integration — continue without signature check
+  }
+
   const checksum = body.signature?.checksum ?? '';
   const timestamp = String(body.timestamp ?? '');
-  if (checksum && !verifyWompiSignature(rawBody, checksum, timestamp)) {
+  if (checksum && !verifyWompiSignature(rawBody, checksum, timestamp, eventSecret)) {
     reply.status(401).send({ error: 'Invalid signature' });
     return;
   }
@@ -35,31 +64,35 @@ export async function wompiWebhookHandler(request: FastifyRequest, reply: Fastif
   }
 
   const tx = body.data.transaction;
-  const externalId = tx.id;
   const status = tx.status === 'APPROVED' ? 'paid' : tx.status === 'DECLINED' ? 'failed' : 'pending';
 
   const [payment] = await db
     .select()
     .from(payments)
-    .where(eq(payments.externalId, externalId))
+    .where(eq(payments.externalId, tx.id))
     .limit(1);
 
-  if (!payment) {
+  // Reject if payment doesn't belong to this tenant
+  if (!payment || payment.tenantId !== tenantId) {
     reply.status(200).send({ ok: true });
     return;
   }
 
-  await db.update(payments).set({
-    status,
-    ...(status === 'paid' ? { paidAt: new Date() } : {}),
-  }).where(eq(payments.id, payment.id));
+  await db
+    .update(payments)
+    .set({ status, ...(status === 'paid' ? { paidAt: new Date() } : {}) })
+    .where(eq(payments.id, payment.id));
 
-  // If payment is linked to an order, update it too
   if (payment.orderId) {
-    await db.update(orders).set({
-      paymentStatus: status,
-      ...(status === 'paid' ? { status: 'confirmed', updatedAt: new Date() } : { updatedAt: new Date() }),
-    }).where(eq(orders.id, payment.orderId));
+    await db
+      .update(orders)
+      .set({
+        paymentStatus: status,
+        ...(status === 'paid'
+          ? { status: 'confirmed', updatedAt: new Date() }
+          : { updatedAt: new Date() }),
+      })
+      .where(eq(orders.id, payment.orderId));
   }
 
   reply.status(200).send({ ok: true });

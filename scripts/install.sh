@@ -97,27 +97,6 @@ collect_config() {
   read -r LLM_MODEL
   LLM_MODEL="${LLM_MODEL:-gpt-4o-mini}"
 
-  # Wompi (opcional)
-  echo ""
-  ask "¿Configurar Wompi ahora? (s/N):"
-  read -r SETUP_WOMPI
-  if [[ "$SETUP_WOMPI" =~ ^[sS]$ ]]; then
-    ask "Wompi Public Key (pub_test_... o pub_prod_...):"
-    read -r WOMPI_PUBLIC
-    ask "Wompi Private Key (prv_test_... o prv_prod_...):"
-    read -r WOMPI_PRIVATE
-    ask "Wompi Event Secret:"
-    read -r WOMPI_SECRET
-    ask "Entorno Wompi (sandbox/production) [sandbox]:"
-    read -r WOMPI_ENV
-    WOMPI_ENV="${WOMPI_ENV:-sandbox}"
-  else
-    WOMPI_PUBLIC="CONFIGURAR_LUEGO"
-    WOMPI_PRIVATE="CONFIGURAR_LUEGO"
-    WOMPI_SECRET="CONFIGURAR_LUEGO"
-    WOMPI_ENV="sandbox"
-  fi
-
   # Generar secretos automáticos
   info "Generando claves seguras automáticamente..."
   POSTGRES_PASSWORD=$(gen_hex32)
@@ -239,10 +218,8 @@ FB_RATE_LIMIT_PER_MINUTE=15
 TT_POLL_INTERVAL_SECONDS=60
 
 # ─── Wompi (Pagos) ───
-WOMPI_SANDBOX_PUBLIC_KEY=${WOMPI_PUBLIC}
-WOMPI_SANDBOX_PRIVATE_KEY=${WOMPI_PRIVATE}
-WOMPI_EVENT_SECRET=${WOMPI_SECRET}
-WOMPI_ENV=${WOMPI_ENV}
+# Configura las credenciales Wompi por tenant en: Dashboard → Integraciones → Wompi
+# Cada tenant ingresa su publicKey, privateKey y eventSecret de forma independiente.
 
 # ─── API ───
 API_PORT=3001
