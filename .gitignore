@@ -40,3 +40,6 @@ redisdata/
 
 # Test coverage
 coverage/
+
+# Claude Code
+.claude/
