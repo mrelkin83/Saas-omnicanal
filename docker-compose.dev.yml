@@ -9,9 +9,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-saas}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-saas_dev_password}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
+      - ./packages/db/docker/init.sh:/docker-entrypoint-initdb.d/00_init.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-saas}"]
       interval: 10s

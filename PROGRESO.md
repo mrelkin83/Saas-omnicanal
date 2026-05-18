@@ -45,3 +45,54 @@
 - Plugin Fastify tenant.ts
 
 ---
+
+## Fase 1 — Modelo de datos + RLS + Seed
+**Estado:** ✅ COMPLETA
+**Fecha:** 2026-05-17
+**Tag:** `fase-1-completa`
+
+### Tareas completadas
+- [x] 20 archivos de schema Drizzle (35 tablas en total) en `packages/db/src/schema/`
+- [x] pgVector custom type (1536 dims) para `ai_knowledge_entries.embedding`
+- [x] `schema/index.ts` exporta todos los schemas con extensión `.js` (NodeNext)
+- [x] `drizzle.config.ts` actualizado a `defineConfig` + schema apunta a `./dist/schema/index.js`
+- [x] `db:generate` genera migración `0000_spicy_sasquatch.sql` (35 tablas)
+- [x] `docker/init.sh` crea extensiones pgcrypto + vector antes del primer arrange
+- [x] `migrate.ts` aplica migraciones + crea rol `app` (NOSUPERUSER/NOBYPASSRLS) + habilita RLS con FORCE en todas las tablas con tenant_id
+- [x] `demo-seed.ts`: 1 superadmin, 3 planes SaaS, 7 tenants demo, owners, configs, depts, customers y productos del restaurante
+- [x] Plugin Fastify `apps/api/src/plugins/tenant.ts` con `fastify-plugin`, decorador `request.tenantId`, helper `fastify.withTenantCtx`
+
+### Decisiones de implementación
+- **Puerto Postgres: 5433** (no 5432): hay una instancia nativa de PostgreSQL en Windows ocupando 5432. Docker mapea 5433:5432.
+- **`saas` es superuser de Docker bootstrap**: Docker siempre crea POSTGRES_USER como superuser y no se puede degradar a sí mismo. Por eso RLS se configura con política `TO app` (no aplica a saas). La extensión `vector` se crea en `init.sh` antes que las tablas.
+- **Rol `app` (NOSUPERUSER, NOBYPASSRLS)**: es el rol de runtime para el API. La aplicación usará este rol en producción para que RLS se aplique correctamente.
+- **FORCE ROW LEVEL SECURITY**: habilitado en todas las tablas con tenant_id para que incluso el dueño de la tabla (non-superuser) sea sujeto a RLS.
+
+### Output del checkpoint (2026-05-17)
+```
+1. pnpm --filter @saas/db db:migrate
+   → Migrations applied successfully
+
+2. pnpm --filter @saas/db db:seed
+   → ✅ Superadmin: admin@saas.com
+   → ✅ Plans: 3 created
+   → ✅ Tenants: 7 created
+   → ✅ Tenant owners, configs, departments, and customers created
+   → ✅ Restaurant demo products created
+   → 🎉 Demo seed completed successfully!
+
+3. SELECT name, business_type, capabilities FROM tenants;
+   → 7 filas (restaurante, clínica, boutique, salón, inmobiliaria, ferretería, gymfit)
+
+4. [app user] SET app.tenant_id='00000000-...'; SELECT count(*) FROM customers;
+   → 0   ← RLS bloquea correctamente
+   NOTA: psql -U saas bypassa RLS (saas es superuser de Docker). Se verifica con -U app.
+
+5. SELECT extname FROM pg_extension WHERE extname='vector';
+   → 1 fila: vector
+```
+
+### Siguiente fase
+**Fase 2 — Auth + Tenants + Users + Plugins base**
+
+---
