@@ -1,0 +1,141 @@
+version: '3.9'
+
+# Production Docker Compose
+# Usage: docker compose -f docker/docker-compose.yml up -d
+# Prerequisites: copy .env.example to .env at repo root and fill in values
+
+services:
+  # ── Infrastructure ───────────────────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: saas_omnichannel
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../packages/db/docker/init.sh:/docker-entrypoint-initdb.d/00_init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+
+  # ── Evolution API (WhatsApp) ─────────────────────────────────────────────
+  evolution-api:
+    image: atendai/evolution-api:v2.2.3
+    restart: unless-stopped
+    environment:
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_GLOBAL_KEY}
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/evolution_api
+      DATABASE_CONNECTION_CLIENT_NAME: evolution
+      CACHE_REDIS_ENABLED: 'true'
+      CACHE_REDIS_URI: redis://redis:6379/1
+      CACHE_REDIS_PREFIX_KEY: evo
+      SERVER_URL: ${API_BASE_URL}
+      WEBHOOK_GLOBAL_URL: http://api:3001/api/webhooks/evolution
+      WEBHOOK_GLOBAL_ENABLED: 'true'
+      WEBHOOK_EVENTS_QRCODE_UPDATED: 'true'
+      WEBHOOK_EVENTS_MESSAGES_UPSERT: 'true'
+      WEBHOOK_EVENTS_CONNECTION_UPDATE: 'true'
+      WEBHOOK_EVENTS_MESSAGES_UPDATE: 'true'
+      DEL_INSTANCE: 'false'
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_started }
+    networks: [internal]
+
+  # ── Instagram Bridge ─────────────────────────────────────────────────────
+  instagram-bridge:
+    build:
+      context: ../apps/instagram-bridge
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    volumes:
+      - ig_sessions:/tmp/ig_sessions
+    networks: [internal]
+
+  # ── API ──────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/saas_omnichannel
+      REDIS_URL: redis://redis:6379/0
+      EVOLUTION_API_URL: http://evolution-api:8080
+      INSTAGRAM_BRIDGE_URL: http://instagram-bridge:8000
+      API_PORT: 3001
+      API_HOST: 0.0.0.0
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_started }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks: [internal]
+
+  # ── Web ──────────────────────────────────────────────────────────────────
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${API_BASE_URL}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ${API_BASE_URL}
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [internal]
+
+  # ── Caddy (HTTPS reverse proxy) ──────────────────────────────────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+      - api
+    networks: [internal]
+
+volumes:
+  pgdata:
+  redisdata:
+  ig_sessions:
+  caddy_data:
+  caddy_config:
+
+networks:
+  internal:
+    driver: bridge
