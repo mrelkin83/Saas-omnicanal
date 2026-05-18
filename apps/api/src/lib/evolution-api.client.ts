@@ -1,0 +1,83 @@
+const BASE = process.env['EVOLUTION_API_URL'] ?? 'http://localhost:8080';
+const GLOBAL_KEY = process.env['EVOLUTION_API_GLOBAL_KEY'] ?? '';
+
+async function evoRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: GLOBAL_KEY,
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Evolution API ${method} ${path} → ${res.status}: ${text}`);
+  }
+
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+export interface EvoInstance {
+  instance: {
+    instanceName: string;
+    status: string;
+    serverUrl?: string;
+  };
+  qrcode?: { base64: string; code: string };
+}
+
+export interface EvoQR {
+  base64: string;
+  code: string;
+}
+
+export interface EvoConnectionState {
+  instance: { state: string };
+}
+
+export interface EvoSendTextResult {
+  key: { id: string };
+  status: string;
+}
+
+export async function createInstance(instanceName: string, webhookUrl: string): Promise<EvoInstance> {
+  return evoRequest<EvoInstance>('POST', '/instance/create', {
+    instanceName,
+    integration: 'WHATSAPP-BAILEYS',
+    qrcode: true,
+    webhook: {
+      url: webhookUrl,
+      events: ['QRCODE_UPDATED', 'MESSAGES_UPSERT', 'CONNECTION_UPDATE', 'MESSAGES_UPDATE'],
+      webhookByEvents: false,
+      webhookBase64: false,
+    },
+  });
+}
+
+export async function getQR(instanceName: string): Promise<EvoQR> {
+  const res = await evoRequest<{ base64: string; code: string }>('GET', `/instance/connect/${instanceName}`);
+  return res;
+}
+
+export async function getConnectionState(instanceName: string): Promise<EvoConnectionState> {
+  return evoRequest<EvoConnectionState>('GET', `/instance/connectionState/${instanceName}`);
+}
+
+export async function sendText(instanceName: string, number: string, text: string): Promise<EvoSendTextResult> {
+  return evoRequest<EvoSendTextResult>('POST', `/message/sendText/${instanceName}`, { number, text });
+}
+
+export async function logoutInstance(instanceName: string): Promise<void> {
+  await evoRequest<void>('DELETE', `/instance/logout/${instanceName}`);
+}
+
+export async function deleteInstance(instanceName: string): Promise<void> {
+  await evoRequest<void>('DELETE', `/instance/delete/${instanceName}`);
+}
+
+export async function fetchInstances(): Promise<{ instance: { instanceName: string; status: string } }[]> {
+  return evoRequest<{ instance: { instanceName: string; status: string } }[]>('GET', '/instance/fetchInstances');
+}

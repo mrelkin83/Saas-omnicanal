@@ -20,6 +20,10 @@ import conversationsRoutes from './modules/conversations/conversations.routes.js
 import appointmentsRoutes from './modules/appointments/appointments.routes.js';
 import aiRoutes from './modules/ai/ai.routes.js';
 import devRoutes from './modules/dev/dev.routes.js';
+import channelsRoutes from './modules/channels/channels.routes.js';
+import webhooksRoutes from './modules/webhooks/webhooks.routes.js';
+import { registerDriver } from './modules/channels/core/channel-manager.js';
+import { whatsappDriver } from './modules/channels/drivers/whatsapp/whatsapp.driver.js';
 
 const PORT = parseInt(process.env['API_PORT'] ?? '3001', 10);
 const HOST = process.env['API_HOST'] ?? '0.0.0.0';
@@ -36,6 +40,9 @@ const app = Fastify({
     }),
   },
 });
+
+// ── Register channel drivers ───────────────────────────────────────────────
+registerDriver(whatsappDriver);
 
 // ── Plugins (order matters) ────────────────────────────────────────────────
 await app.register(errorHandlerPlugin);
@@ -64,6 +71,8 @@ await app.register(async (api) => {
   await api.register(appointmentsRoutes, { prefix: '/appointments' });
   await api.register(aiRoutes, { prefix: '/ai' });
   await api.register(devRoutes, { prefix: '/dev' });
+  await api.register(channelsRoutes, { prefix: '/channels' });
+  await api.register(webhooksRoutes, { prefix: '/webhooks' });
 }, { prefix: '/api' });
 
 // ── Start ─────────────────────────────────────────────────────────────────

@@ -160,4 +160,15 @@ export const api = {
     delete: (token: string, id: string) =>
       request<void>(`/api/users/${id}`, { method: 'DELETE', token }),
   },
+
+  channels: {
+    status: (token: string) =>
+      request<{ whatsapp: { id: string; status: string; displayName: string | null; lastSeenAt: string | null } | null }>('/api/channels/status', { token }),
+    connectWhatsApp: (token: string) =>
+      request<{ sessionId: string; status: string; qrCode: string | null }>('/api/channels/whatsapp/connect', { method: 'POST', token }),
+    disconnectWhatsApp: (token: string, id: string) =>
+      request<void>(`/api/channels/whatsapp/${id}`, { method: 'DELETE', token }),
+    getQR: (token: string) =>
+      request<{ qrCode: string }>('/api/channels/whatsapp/qr', { token }),
+  },
 };

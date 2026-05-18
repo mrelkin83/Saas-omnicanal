@@ -85,14 +85,15 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  // Global preHandler: extract JWT from Authorization header if present
+  // Global preHandler: extract JWT from Authorization header or ?token= query param (SSE)
   fastify.addHook('preHandler', async (request: FastifyRequest) => {
     const authHeader = request.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) return;
+    const queryToken = (request.query as Record<string, string | undefined>)['token'];
+    const raw = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : queryToken;
+    if (!raw) return;
 
-    const token = authHeader.slice(7);
     try {
-      request.user = await fastify.verifyAccessToken(token);
+      request.user = await fastify.verifyAccessToken(raw);
     } catch {
       // Invalid token — request.user stays null; routes that require auth will reject
     }

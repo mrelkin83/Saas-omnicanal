@@ -34,6 +34,34 @@ services:
       retries: 5
     networks: [dev]
 
+  evolution-api:
+    image: atendai/evolution-api:v2.2.3
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_GLOBAL_KEY:-evo_dev_key_change_me}
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${POSTGRES_USER:-saas}:${POSTGRES_PASSWORD:-saas_dev_password}@postgres:5432/evolution_api
+      DATABASE_CONNECTION_CLIENT_NAME: evolution
+      CACHE_REDIS_ENABLED: 'true'
+      CACHE_REDIS_URI: redis://redis:6379/1
+      CACHE_REDIS_PREFIX_KEY: evo
+      SERVER_URL: http://localhost:8080
+      WEBHOOK_GLOBAL_URL: ${API_BASE_URL:-http://host.docker.internal:3001}/api/webhooks/evolution
+      WEBHOOK_GLOBAL_ENABLED: 'true'
+      WEBHOOK_EVENTS_QRCODE_UPDATED: 'true'
+      WEBHOOK_EVENTS_MESSAGES_UPSERT: 'true'
+      WEBHOOK_EVENTS_CONNECTION_UPDATE: 'true'
+      WEBHOOK_EVENTS_MESSAGES_UPDATE: 'true'
+      DEL_INSTANCE: 'false'
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_started }
+    networks: [dev]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
 volumes:
   pgdata_dev:
   redisdata_dev:

@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Inicio', icon: '🏠' },
   { href: '/dashboard/conversations', label: 'Conversaciones', icon: '💬' },
+  { href: '/dashboard/channels', label: 'Canales', icon: '📡' },
   { href: '/dashboard/catalog', label: 'Catálogo', icon: '📦' },
   { href: '/dashboard/customers', label: 'Clientes', icon: '👥' },
   { href: '/dashboard/team', label: 'Equipo', icon: '🧑‍💼' },
