@@ -1,5 +1,19 @@
 # Guía de Despliegue — SaaS Omnicanal
 
+## Opción rápida: Autoinstalador
+
+Un solo comando configura todo desde cero en Ubuntu 22.04:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mrelkin83/Saas-omnicanal/main/scripts/install.sh | bash
+```
+
+El script instala Docker, configura el firewall, clona el repo, genera `.env` con claves seguras, levanta todos los servicios, ejecuta migraciones, crea el superadmin y programa los backups diarios.
+
+---
+
+## Instalación manual (paso a paso)
+
 ## Requisitos del VPS
 
 | Recurso | Mínimo | Recomendado |

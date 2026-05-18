@@ -232,30 +232,20 @@ pnpm --filter @saas/db db:migrate
 
 ## Despliegue en producción (VPS)
 
-Ver [`DEPLOY.md`](DEPLOY.md) para la guía completa paso a paso.
+### Opción A — Autoinstalador (recomendado)
 
-**Resumen rápido (Ubuntu 22.04 con Docker instalado):**
+Un solo comando configura todo en una VPS Ubuntu 22.04 limpia: Docker, firewall, claves seguras, servicios, migraciones, superadmin y backups automáticos.
 
 ```bash
-git clone https://github.com/mrelkin83/Saas-omnicanal
-cd Saas-omnicanal
-cp .env.example .env
-# Editar .env con dominio real y claves de producción
-
-# Levantar todo (Postgres, Redis, Evolution API, API, Web, Caddy HTTPS)
-docker compose -f docker/docker-compose.yml up -d --build
-
-# Migraciones
-docker compose -f docker/docker-compose.yml exec api \
-  node -e "import('@saas/db').then(m => m.migrate())"
-
-# Crear superadmin
-docker compose -f docker/docker-compose.yml exec api \
-  node dist/scripts/create-superadmin.js
-
-# Backup diario (agregar a crontab)
-0 2 * * * /opt/saas/scripts/backup-postgres.sh >> /var/log/pg-backup.log 2>&1
+# Conectarse al VPS como root y ejecutar:
+curl -fsSL https://raw.githubusercontent.com/mrelkin83/Saas-omnicanal/main/scripts/install.sh | bash
 ```
+
+El script solicita interactivamente: dominio, email/contraseña del superadmin, API Key de IA y opcionalmente Wompi. Todo lo demás (claves JWT, ENCRYPTION_KEY, contraseña PostgreSQL) se genera automáticamente.
+
+### Opción B — Manual paso a paso
+
+Ver [`DEPLOY.md`](DEPLOY.md) para la guía completa.
 
 ---
 
