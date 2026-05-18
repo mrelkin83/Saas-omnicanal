@@ -1,4 +1,5 @@
-import { db, tenants, eq } from '@saas/db';
+import { db, tenants, tenantConfig, eq, and } from '@saas/db';
+import { redis } from '../../lib/redis.js';
 import type { PatchTenantInput } from './tenants.schemas.js';
 
 export async function getTenantById(id: string) {
@@ -36,4 +37,42 @@ export async function updateTenant(id: string, data: PatchTenantInput) {
     .returning();
 
   return updated;
+}
+
+const configCacheKey = (tenantId: string, key: string) => `config:${tenantId}:${key}`;
+
+export async function getConfig(tenantId: string, key: string): Promise<{ key: string; value: unknown } | null> {
+  const cacheKey = configCacheKey(tenantId, key);
+  const cached = await redis.get(cacheKey);
+  if (cached !== null) {
+    return { key, value: JSON.parse(cached) as unknown };
+  }
+
+  const [row] = await db
+    .select()
+    .from(tenantConfig)
+    .where(and(eq(tenantConfig.tenantId, tenantId), eq(tenantConfig.key, key)));
+
+  if (!row) return null;
+
+  await redis.set(cacheKey, JSON.stringify(row.value), 'EX', 300);
+  return { key: row.key, value: row.value };
+}
+
+export async function setConfig(tenantId: string, key: string, value: unknown): Promise<{ key: string; value: unknown }> {
+  await db
+    .insert(tenantConfig)
+    .values({ tenantId, key, value })
+    .onConflictDoUpdate({
+      target: [tenantConfig.tenantId, tenantConfig.key],
+      set: { value, updatedAt: new Date() },
+    });
+
+  await redis.del(configCacheKey(tenantId, key));
+  return { key, value };
+}
+
+export async function getAllConfig(tenantId: string): Promise<Record<string, unknown>> {
+  const rows = await db.select().from(tenantConfig).where(eq(tenantConfig.tenantId, tenantId));
+  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }

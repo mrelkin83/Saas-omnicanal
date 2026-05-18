@@ -13,6 +13,10 @@ import tenantPlugin from './plugins/tenant.js';
 import authRoutes from './modules/auth/auth.routes.js';
 import tenantsRoutes from './modules/tenants/tenants.routes.js';
 import usersRoutes from './modules/users/users.routes.js';
+import categoriesRoutes from './modules/categories/categories.routes.js';
+import productsRoutes from './modules/products/products.routes.js';
+import customersRoutes from './modules/customers/customers.routes.js';
+import conversationsRoutes from './modules/conversations/conversations.routes.js';
 
 const PORT = parseInt(process.env['API_PORT'] ?? '3001', 10);
 const HOST = process.env['API_HOST'] ?? '0.0.0.0';
@@ -50,6 +54,10 @@ await app.register(async (api) => {
   await api.register(authRoutes, { prefix: '/auth' });
   await api.register(tenantsRoutes, { prefix: '/tenants' });
   await api.register(usersRoutes, { prefix: '/users' });
+  await api.register(categoriesRoutes, { prefix: '/categories' });
+  await api.register(productsRoutes, { prefix: '/products' });
+  await api.register(customersRoutes, { prefix: '/customers' });
+  await api.register(conversationsRoutes, { prefix: '/conversations' });
 }, { prefix: '/api' });
 
 // ── Start ─────────────────────────────────────────────────────────────────

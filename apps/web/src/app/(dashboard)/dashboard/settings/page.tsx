@@ -1,0 +1,293 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { useAuthStore } from '@/store/auth';
+import { api, type TenantMe } from '@/lib/api';
+
+const SECTIONS = ['Negocio', 'IA y Agente', 'Pagos', 'Apariencia'] as const;
+type Section = typeof SECTIONS[number];
+
+const businessSchema = z.object({
+  name: z.string().min(2),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  description: z.string().optional(),
+  website: z.string().url().optional().or(z.literal('')),
+  billingEmail: z.string().email().optional().or(z.literal('')),
+});
+
+const aiSchema = z.object({
+  aiAgentName: z.string().min(1).max(100),
+  aiTone: z.enum(['amigable', 'profesional', 'formal', 'casual']),
+  aiModel: z.enum(['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo']),
+  aiTemperature: z.coerce.number().min(0).max(1),
+  aiMaxTokens: z.coerce.number().int().min(100).max(4000),
+});
+
+type BusinessForm = z.infer<typeof businessSchema>;
+type AiForm = z.infer<typeof aiSchema>;
+
+const inputCls = 'w-full px-3 py-2.5 rounded-lg text-text-primary text-sm outline-none transition-all';
+const inputStyle = { background: 'var(--bg-surface-2)', border: '1px solid var(--border-default)' };
+const labelCls = 'block text-sm font-medium text-text-secondary mb-1.5';
+
+function SaveBtn({ loading }: { loading: boolean }) {
+  return (
+    <button type="submit" disabled={loading} className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-60" style={{ background: 'var(--accent-primary)' }}>
+      {loading ? 'Guardando...' : 'Guardar cambios'}
+    </button>
+  );
+}
+
+function BusinessSection({ tenant, token, onSaved }: { tenant: TenantMe; token: string; onSaved: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [ok, setOk] = useState(false);
+  const { register, handleSubmit, formState: { errors } } = useForm<BusinessForm>({
+    resolver: zodResolver(businessSchema),
+    defaultValues: {
+      name: tenant.name,
+      phone: tenant.phone ?? '',
+      address: tenant.address ?? '',
+      description: tenant.description ?? '',
+      website: tenant.website ?? '',
+      billingEmail: tenant.billingEmail ?? '',
+    },
+  });
+
+  const onSubmit = async (data: BusinessForm) => {
+    setLoading(true);
+    try {
+      await api.tenants.patch(token, {
+        name: data.name,
+        phone: data.phone || undefined,
+        address: data.address || undefined,
+        description: data.description || undefined,
+        website: data.website || undefined,
+        billingEmail: data.billingEmail || undefined,
+      });
+      setOk(true);
+      onSaved();
+      setTimeout(() => setOk(false), 2000);
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div>
+          <label className={labelCls}>Nombre de la empresa *</label>
+          <input {...register('name')} className={inputCls} style={inputStyle} />
+          {errors.name && <p className="text-xs mt-1" style={{ color: 'var(--accent-danger)' }}>{errors.name.message}</p>}
+        </div>
+        <div>
+          <label className={labelCls}>Teléfono</label>
+          <input {...register('phone')} placeholder="+57 300 000 0000" className={inputCls} style={inputStyle} />
+        </div>
+        <div className="md:col-span-2">
+          <label className={labelCls}>Dirección</label>
+          <input {...register('address')} placeholder="Cra 7 # 50-20, Bogotá" className={inputCls} style={inputStyle} />
+        </div>
+        <div className="md:col-span-2">
+          <label className={labelCls}>Descripción del negocio</label>
+          <textarea {...register('description')} rows={3} className={inputCls} style={inputStyle} placeholder="¿Qué hace tu empresa?" />
+        </div>
+        <div>
+          <label className={labelCls}>Sitio web</label>
+          <input {...register('website')} placeholder="https://tuempresa.co" className={inputCls} style={inputStyle} />
+        </div>
+        <div>
+          <label className={labelCls}>Email de facturación</label>
+          <input {...register('billingEmail')} type="email" placeholder="pagos@tuempresa.co" className={inputCls} style={inputStyle} />
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <SaveBtn loading={loading} />
+        {ok && <span className="text-sm" style={{ color: 'var(--accent-success)' }}>✓ Guardado</span>}
+      </div>
+    </form>
+  );
+}
+
+function AiSection({ tenant, token, onSaved }: { tenant: TenantMe; token: string; onSaved: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [ok, setOk] = useState(false);
+  const { register, handleSubmit } = useForm<AiForm>({
+    resolver: zodResolver(aiSchema),
+    defaultValues: {
+      aiAgentName: tenant.aiAgentName,
+      aiTone: tenant.aiTone as AiForm['aiTone'],
+      aiModel: tenant.aiModel as AiForm['aiModel'],
+      aiTemperature: Number(tenant.aiTemperature),
+      aiMaxTokens: tenant.aiMaxTokens,
+    },
+  });
+
+  const onSubmit = async (data: AiForm) => {
+    setLoading(true);
+    try {
+      await api.tenants.patch(token, data);
+      setOk(true);
+      onSaved();
+      setTimeout(() => setOk(false), 2000);
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div>
+          <label className={labelCls}>Nombre del agente IA</label>
+          <input {...register('aiAgentName')} placeholder="Asistente" className={inputCls} style={inputStyle} />
+        </div>
+        <div>
+          <label className={labelCls}>Tono de voz</label>
+          <select {...register('aiTone')} className={inputCls} style={inputStyle}>
+            <option value="amigable">Amigable</option>
+            <option value="profesional">Profesional</option>
+            <option value="formal">Formal</option>
+            <option value="casual">Casual</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelCls}>Modelo de IA</label>
+          <select {...register('aiModel')} className={inputCls} style={inputStyle}>
+            <option value="gpt-4o-mini">GPT-4o Mini (rápido, económico)</option>
+            <option value="gpt-4o">GPT-4o (recomendado)</option>
+            <option value="gpt-4-turbo">GPT-4 Turbo (máxima capacidad)</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelCls}>Temperatura (0 = preciso, 1 = creativo)</label>
+          <input {...register('aiTemperature')} type="number" step="0.05" min="0" max="1" className={inputCls} style={inputStyle} />
+        </div>
+        <div>
+          <label className={labelCls}>Máx. tokens por respuesta</label>
+          <input {...register('aiMaxTokens')} type="number" step="50" min="100" max="4000" className={inputCls} style={inputStyle} />
+        </div>
+      </div>
+      <div
+        className="p-4 rounded-xl text-sm"
+        style={{ background: 'var(--accent-primary-subtle)', border: '1px solid var(--border-glow)' }}
+      >
+        <p className="font-medium" style={{ color: 'var(--accent-primary)' }}>💡 ¿Cómo funciona el agente IA?</p>
+        <p className="text-text-secondary mt-1">
+          El agente responde automáticamente a tus clientes en WhatsApp, Instagram y otros canales. Puedes entrenarlo con tu base de conocimiento en la sección de IA.
+        </p>
+      </div>
+      <div className="flex items-center gap-3">
+        <SaveBtn loading={loading} />
+        {ok && <span className="text-sm" style={{ color: 'var(--accent-success)' }}>✓ Guardado</span>}
+      </div>
+    </form>
+  );
+}
+
+function PaymentsSection() {
+  return (
+    <div className="space-y-5">
+      <div
+        className="p-4 rounded-xl text-sm"
+        style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)' }}
+      >
+        <p className="font-medium" style={{ color: 'var(--accent-warning)' }}>⚠️ Próximamente</p>
+        <p className="text-text-secondary mt-1">
+          Integración con Wompi para recibir pagos de tus clientes directamente desde WhatsApp. Disponible en Fase 5.
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div>
+          <label className={labelCls}>Wompi — Public Key</label>
+          <input disabled placeholder="pub_prod_XXXXXXXXXX" className={inputCls + ' opacity-50 cursor-not-allowed'} style={inputStyle} />
+        </div>
+        <div>
+          <label className={labelCls}>Wompi — Private Key</label>
+          <input disabled type="password" placeholder="prv_prod_XXXXXXXXXX" className={inputCls + ' opacity-50 cursor-not-allowed'} style={inputStyle} />
+        </div>
+        <div>
+          <label className={labelCls}>Wompi — Events Secret</label>
+          <input disabled placeholder="secret_XXXXXXXXXX" className={inputCls + ' opacity-50 cursor-not-allowed'} style={inputStyle} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AppearanceSection() {
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-text-secondary">Personaliza la apariencia de la plataforma. Más opciones disponibles en futuras versiones.</p>
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Oscuro (actual)', bg: '#08090E', active: true },
+          { label: 'Claro', bg: '#F5F6FA', active: false },
+          { label: 'Azul corporativo', bg: '#0A1628', active: false },
+        ].map((t) => (
+          <button
+            key={t.label}
+            className="rounded-xl p-4 border text-center text-xs transition-all"
+            style={{
+              background: t.bg,
+              borderColor: t.active ? 'var(--accent-primary)' : 'var(--border-subtle)',
+              color: t.active ? 'var(--accent-primary)' : 'var(--text-secondary)',
+              boxShadow: t.active ? '0 0 0 2px var(--accent-primary)' : 'none',
+            }}
+          >
+            <div className="h-8 rounded mb-2" style={{ background: t.bg }} />
+            {t.label}
+            {t.active && <span className="block mt-1" style={{ color: 'var(--accent-primary)' }}>✓ Activo</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function SettingsPage() {
+  const { accessToken } = useAuthStore();
+  const [section, setSection] = useState<Section>('Negocio');
+  const [tenant, setTenant] = useState<TenantMe | null>(null);
+
+  const load = async () => {
+    if (!accessToken) return;
+    setTenant(await api.tenants.me(accessToken));
+  };
+
+  useEffect(() => { void load(); }, [accessToken]);
+
+  return (
+    <div className="p-8 max-w-3xl">
+      <h1 className="text-xl font-bold text-text-primary mb-6">Configuración</h1>
+
+      <div className="flex gap-1 mb-8 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+        {SECTIONS.map((s) => (
+          <button
+            key={s}
+            onClick={() => setSection(s)}
+            className="px-4 py-2.5 text-sm font-medium transition-all"
+            style={{
+              color: section === s ? 'var(--accent-primary)' : 'var(--text-secondary)',
+              borderBottom: section === s ? '2px solid var(--accent-primary)' : '2px solid transparent',
+              marginBottom: '-1px',
+            }}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {!tenant ? (
+        <p className="text-text-tertiary text-sm">Cargando...</p>
+      ) : (
+        <>
+          {section === 'Negocio' && <BusinessSection tenant={tenant} token={accessToken!} onSaved={load} />}
+          {section === 'IA y Agente' && <AiSection tenant={tenant} token={accessToken!} onSaved={load} />}
+          {section === 'Pagos' && <PaymentsSection />}
+          {section === 'Apariencia' && <AppearanceSection />}
+        </>
+      )}
+    </div>
+  );
+}

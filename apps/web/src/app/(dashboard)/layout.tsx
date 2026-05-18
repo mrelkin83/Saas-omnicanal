@@ -7,10 +7,11 @@ import { api } from '@/lib/api';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Inicio', icon: '🏠' },
-  { href: '/conversations', label: 'Conversaciones', icon: '💬' },
-  { href: '/catalog', label: 'Catálogo', icon: '📦' },
-  { href: '/contacts', label: 'Contactos', icon: '👥' },
-  { href: '/settings', label: 'Configuración', icon: '⚙️' },
+  { href: '/dashboard/conversations', label: 'Conversaciones', icon: '💬' },
+  { href: '/dashboard/catalog', label: 'Catálogo', icon: '📦' },
+  { href: '/dashboard/customers', label: 'Clientes', icon: '👥' },
+  { href: '/dashboard/team', label: 'Equipo', icon: '🧑‍💼' },
+  { href: '/dashboard/settings', label: 'Configuración', icon: '⚙️' },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

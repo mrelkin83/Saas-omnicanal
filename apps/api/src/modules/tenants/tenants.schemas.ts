@@ -16,3 +16,10 @@ export const patchTenantSchema = z.object({
 });
 
 export type PatchTenantInput = z.infer<typeof patchTenantSchema>;
+
+export const setConfigSchema = z.object({
+  key: z.string().min(1).max(100),
+  value: z.unknown(),
+});
+
+export type SetConfigInput = z.infer<typeof setConfigSchema>;
