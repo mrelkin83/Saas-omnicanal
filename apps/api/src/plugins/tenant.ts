@@ -18,9 +18,7 @@ const tenantPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.decorate(
     'withTenantCtx',
     async <T>(tenantId: string | null, fn: (tx: Database) => Promise<T>): Promise<T> => {
-      if (!tenantId) {
-        return fn(db);
-      }
+      if (!tenantId) return fn(db);
       return db.transaction(async (tx) => {
         await tx.execute(sql`SELECT set_config('app.tenant_id', ${tenantId}, true)`);
         return fn(tx as unknown as Database);
@@ -29,10 +27,10 @@ const tenantPlugin: FastifyPluginAsync = async (fastify) => {
   );
 
   fastify.addHook('preHandler', async (request) => {
-    // Phase 2 replaces this with JWT extraction
-    const header = request.headers['x-tenant-id'];
-    request.tenantId = typeof header === 'string' ? header : null;
+    const fromJwt = request.user?.tenantId;
+    const fromHeader = request.headers['x-tenant-id'] as string | undefined;
+    request.tenantId = fromJwt ?? fromHeader ?? null;
   });
 };
 
-export default fp(tenantPlugin, { name: 'tenant' });
+export default fp(tenantPlugin, { name: 'tenant', dependencies: ['auth'] });
