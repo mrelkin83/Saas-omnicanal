@@ -164,11 +164,62 @@ export const api = {
   channels: {
     status: (token: string) =>
       request<{ whatsapp: { id: string; status: string; displayName: string | null; lastSeenAt: string | null } | null }>('/api/channels/status', { token }),
+    allStatus: (token: string) =>
+      request<Record<string, { id: string; status: string; displayName: string | null } | null>>('/api/channels/all-status', { token }),
     connectWhatsApp: (token: string) =>
       request<{ sessionId: string; status: string; qrCode: string | null }>('/api/channels/whatsapp/connect', { method: 'POST', token }),
     disconnectWhatsApp: (token: string, id: string) =>
       request<void>(`/api/channels/whatsapp/${id}`, { method: 'DELETE', token }),
     getQR: (token: string) =>
       request<{ qrCode: string }>('/api/channels/whatsapp/qr', { token }),
+    connectInstagram: (token: string, data: { username: string; password: string; twoFactorCode?: string }) =>
+      request<{ ok: boolean; requires2FA?: boolean; username?: string }>('/api/channels/instagram/connect', { method: 'POST', token, body: JSON.stringify(data) }),
+    disconnectInstagram: (token: string, id: string) =>
+      request<void>(`/api/channels/instagram/${id}`, { method: 'DELETE', token }),
+    connectFacebook: (token: string, data: { appState: string }) =>
+      request<{ ok: boolean }>('/api/channels/facebook/connect', { method: 'POST', token, body: JSON.stringify(data) }),
+    disconnectFacebook: (token: string, id: string) =>
+      request<void>(`/api/channels/facebook/${id}`, { method: 'DELETE', token }),
+    connectTikTok: (token: string, data: { cookies: string; username: string }) =>
+      request<{ ok: boolean; username: string }>('/api/channels/tiktok/connect', { method: 'POST', token, body: JSON.stringify(data) }),
+    disconnectTikTok: (token: string, id: string) =>
+      request<void>(`/api/channels/tiktok/${id}`, { method: 'DELETE', token }),
+  },
+
+  conversations: {
+    list: (token: string, params?: { status?: string; channel?: string; withCustomer?: boolean }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.channel) qs.set('channel', params.channel);
+      if (params?.withCustomer) qs.set('withCustomer', 'true');
+      const q = qs.toString();
+      return request<ConversationSummary[]>(`/api/conversations${q ? `?${q}` : ''}`, { token });
+    },
+    get: (token: string, id: string) => request<ConversationDetail>(`/api/conversations/${id}`, { token }),
+    sendMessage: (token: string, id: string, data: { type: string; content: string }) =>
+      request<Message>(`/api/conversations/${id}/messages`, { method: 'POST', token, body: JSON.stringify(data) }),
+    getAIState: (token: string, id: string) =>
+      request<{ state: string }>(`/api/conversations/${id}/ai-state`, { token }),
+    setAIState: (token: string, id: string, state: 'IA_ACTIVA' | 'AGENTE_ACTIVO') =>
+      request<{ state: string }>(`/api/conversations/${id}/ai-state`, { method: 'PUT', token, body: JSON.stringify({ state }) }),
   },
 };
+
+export interface ConversationSummary {
+  id: string; channel: string; status: string | null;
+  unreadCount: number | null; lastMessageAt: string | null;
+  customerId: string; customerName: string | null; customerPhone: string | null;
+}
+
+export interface Message {
+  id: string; conversationId: string; direction: string;
+  senderType: string; type: string | null; content: string | null;
+  createdAt: string;
+}
+
+export interface ConversationDetail {
+  id: string; channel: string; status: string | null;
+  customerId: string; unreadCount: number | null;
+  lastMessageAt: string | null; createdAt: string;
+  messages: Message[];
+}

@@ -62,7 +62,19 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  instagram-bridge:
+    build:
+      context: ./apps/instagram-bridge
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ig_sessions:/tmp/ig_sessions
+    networks: [dev]
+
 volumes:
+  ig_sessions:
   pgdata_dev:
   redisdata_dev:
 

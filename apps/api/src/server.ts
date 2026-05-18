@@ -24,6 +24,12 @@ import channelsRoutes from './modules/channels/channels.routes.js';
 import webhooksRoutes from './modules/webhooks/webhooks.routes.js';
 import { registerDriver } from './modules/channels/core/channel-manager.js';
 import { whatsappDriver } from './modules/channels/drivers/whatsapp/whatsapp.driver.js';
+import { instagramDriver } from './modules/channels/drivers/instagram/instagram.driver.js';
+import { facebookDriver } from './modules/channels/drivers/facebook/facebook.driver.js';
+import { tiktokDriver } from './modules/channels/drivers/tiktok/tiktok.driver.js';
+import { handleIncomingMessage } from './modules/channels/core/incoming-handler.js';
+import { startInstagramPoller, stopInstagramPoller } from './jobs/instagram-poller.job.js';
+import { startTikTokScraper, stopTikTokScraper } from './jobs/tiktok-scraper.job.js';
 
 const PORT = parseInt(process.env['API_PORT'] ?? '3001', 10);
 const HOST = process.env['API_HOST'] ?? '0.0.0.0';
@@ -43,6 +49,11 @@ const app = Fastify({
 
 // ── Register channel drivers ───────────────────────────────────────────────
 registerDriver(whatsappDriver);
+registerDriver(instagramDriver);
+registerDriver(facebookDriver);
+registerDriver(tiktokDriver);
+
+whatsappDriver.onIncoming(handleIncomingMessage);
 
 // ── Plugins (order matters) ────────────────────────────────────────────────
 await app.register(errorHandlerPlugin);
@@ -79,10 +90,21 @@ await app.register(async (api) => {
 const start = async (): Promise<void> => {
   try {
     await app.listen({ port: PORT, host: HOST });
+    startInstagramPoller();
+    startTikTokScraper();
   } catch (err) {
     app.log.error(err);
     process.exit(1);
   }
 };
+
+const stop = async (): Promise<void> => {
+  await stopInstagramPoller();
+  await stopTikTokScraper();
+  await app.close();
+};
+
+process.on('SIGTERM', () => { stop().catch(() => process.exit(1)); });
+process.on('SIGINT', () => { stop().catch(() => process.exit(1)); });
 
 await start();

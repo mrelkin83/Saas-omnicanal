@@ -52,7 +52,8 @@ class WhatsAppDriver implements IChannelDriver {
   }
 
   async sendMessage(sessionId: string, to: string, message: OutgoingMessage): Promise<SendResult> {
-    const result = await evo.sendText(sessionId, to, message.text);
+    const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+    const result = await evo.sendText(sessionId, jid, message.text);
     return { externalId: result.key.id };
   }
 

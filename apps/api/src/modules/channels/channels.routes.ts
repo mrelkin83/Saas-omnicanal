@@ -1,8 +1,14 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import { requireAuth } from '../../middleware/require-auth.js';
 import { whatsappDriver } from './drivers/whatsapp/whatsapp.driver.js';
+import { instagramDriver } from './drivers/instagram/instagram.driver.js';
+import { facebookDriver } from './drivers/facebook/facebook.driver.js';
+import { tiktokDriver } from './drivers/tiktok/tiktok.driver.js';
 import { upsertSession, getActiveSession, deleteSession } from './channels.service.js';
 import { addSSEClient, removeSSEClient, pushSSEEvent } from './core/sse-registry.js';
+import { handleIncomingMessage } from './core/incoming-handler.js';
+import { addInboxClient, removeInboxClient } from '../../modules/conversations/inbox.sse.js';
 import * as evo from '../../lib/evolution-api.client.js';
 
 const channelsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -117,6 +123,142 @@ const channelsRoutes: FastifyPluginAsync = async (fastify) => {
     } catch {
       return reply.status(503).send({ error: 'Service Unavailable', message: 'QR no disponible aún', code: 'QR_NOT_READY' });
     }
+  });
+
+  // ── Instagram ─────────────────────────────────────────────────────────────
+
+  const igConnectSchema = z.object({
+    username: z.string().min(1),
+    password: z.string().min(1),
+    twoFactorCode: z.string().optional(),
+  });
+
+  fastify.post('/instagram/connect', { preHandler: [requireAuth('admin')] }, async (request, reply) => {
+    const tenantId = request.user!.tenantId;
+    const data = igConnectSchema.parse(request.body);
+
+    const result = await instagramDriver.connect(tenantId, data);
+
+    if (result.errorMessage === 'requires_2fa') {
+      return { ok: false, requires2FA: true };
+    }
+    if (result.status === 'error') {
+      return reply.status(400).send({ error: 'Bad Request', message: result.errorMessage ?? 'Error conectando Instagram', code: 'IG_CONNECT_ERROR' });
+    }
+
+    await upsertSession(tenantId, 'instagram', tenantId, 'connected', data.username);
+    instagramDriver.onIncoming(handleIncomingMessage);
+    return { ok: true, username: data.username };
+  });
+
+  fastify.delete('/instagram/:id', { preHandler: [requireAuth('admin')] }, async (request, reply) => {
+    const tenantId = request.user!.tenantId;
+    const { id } = request.params as { id: string };
+    const session = await getActiveSession(tenantId, 'instagram');
+    if (!session || session.id !== id) {
+      return reply.status(404).send({ error: 'Not Found', message: 'Sesión no encontrada', code: 'NOT_FOUND' });
+    }
+    await instagramDriver.disconnect(tenantId);
+    await deleteSession(tenantId, id);
+    return reply.status(204).send();
+  });
+
+  // ── Facebook ──────────────────────────────────────────────────────────────
+
+  const fbConnectSchema = z.object({
+    appState: z.string().min(1),
+  });
+
+  fastify.post('/facebook/connect', { preHandler: [requireAuth('admin')] }, async (request, reply) => {
+    const tenantId = request.user!.tenantId;
+    const data = fbConnectSchema.parse(request.body);
+
+    const result = await facebookDriver.connect(tenantId, data);
+    if (result.status === 'error') {
+      return reply.status(400).send({ error: 'Bad Request', message: result.errorMessage ?? 'Error conectando Facebook', code: 'FB_CONNECT_ERROR' });
+    }
+
+    await upsertSession(tenantId, 'facebook', tenantId, 'connected');
+    facebookDriver.onIncoming(handleIncomingMessage);
+    return { ok: true };
+  });
+
+  fastify.delete('/facebook/:id', { preHandler: [requireAuth('admin')] }, async (request, reply) => {
+    const tenantId = request.user!.tenantId;
+    const { id } = request.params as { id: string };
+    const session = await getActiveSession(tenantId, 'facebook');
+    if (!session || session.id !== id) {
+      return reply.status(404).send({ error: 'Not Found', message: 'Sesión no encontrada', code: 'NOT_FOUND' });
+    }
+    await facebookDriver.disconnect(tenantId);
+    await deleteSession(tenantId, id);
+    return reply.status(204).send();
+  });
+
+  // ── TikTok ────────────────────────────────────────────────────────────────
+
+  const ttConnectSchema = z.object({
+    cookies: z.string().min(1),
+    username: z.string().min(1),
+  });
+
+  fastify.post('/tiktok/connect', { preHandler: [requireAuth('admin')] }, async (request, _reply) => {
+    const tenantId = request.user!.tenantId;
+    const data = ttConnectSchema.parse(request.body);
+
+    await tiktokDriver.connect(tenantId, data);
+    await upsertSession(tenantId, 'tiktok', tenantId, 'connected', data.username);
+    tiktokDriver.onIncoming(handleIncomingMessage);
+    return { ok: true, username: data.username };
+  });
+
+  fastify.delete('/tiktok/:id', { preHandler: [requireAuth('admin')] }, async (request, reply) => {
+    const tenantId = request.user!.tenantId;
+    const { id } = request.params as { id: string };
+    const session = await getActiveSession(tenantId, 'tiktok');
+    if (!session || session.id !== id) {
+      return reply.status(404).send({ error: 'Not Found', message: 'Sesión no encontrada', code: 'NOT_FOUND' });
+    }
+    await tiktokDriver.disconnect(tenantId);
+    await deleteSession(tenantId, id);
+    return reply.status(204).send();
+  });
+
+  // ── All channels status ───────────────────────────────────────────────────
+
+  fastify.get('/all-status', { preHandler: [requireAuth()] }, async (request) => {
+    const tenantId = request.user!.tenantId;
+    const channels = ['whatsapp', 'instagram', 'facebook', 'tiktok'] as const;
+    const result: Record<string, unknown> = {};
+    for (const ch of channels) {
+      const session = await getActiveSession(tenantId, ch);
+      result[ch] = session ? { id: session.id, status: session.status, displayName: session.displayName } : null;
+    }
+    return result;
+  });
+
+  // ── Inbox SSE ─────────────────────────────────────────────────────────────
+
+  fastify.get('/inbox/stream', { preHandler: [requireAuth()] }, (request, reply) => {
+    const tenantId = request.user!.tenantId;
+    const res = reply.raw;
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    reply.hijack();
+    res.flushHeaders();
+
+    addInboxClient(tenantId, res);
+    const ping = setInterval(() => {
+      try { res.write(':ping\n\n'); } catch { clearInterval(ping); }
+    }, 25000);
+
+    request.raw.on('close', () => {
+      clearInterval(ping);
+      removeInboxClient(tenantId, res);
+    });
   });
 };
 

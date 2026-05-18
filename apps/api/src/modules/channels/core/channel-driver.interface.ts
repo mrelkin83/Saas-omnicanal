@@ -9,7 +9,7 @@ export interface ConnectResult {
 
 export interface ChannelStatus {
   status: 'connected' | 'disconnected' | 'pending_qr' | 'error';
-  displayName?: string;
+  displayName?: string | undefined;
 }
 
 export interface OutgoingMessage {
