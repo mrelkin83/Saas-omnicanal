@@ -234,18 +234,61 @@ pnpm --filter @saas/db db:migrate
 
 ### Opción A — Autoinstalador (recomendado)
 
-Un solo comando configura todo en una VPS Ubuntu 22.04 limpia: Docker, firewall, claves seguras, servicios, migraciones, superadmin y backups automáticos.
+Un solo comando instala y configura todo desde cero en una **VPS Ubuntu 22.04 limpia**.
 
 ```bash
-# Conectarse al VPS como root y ejecutar:
+ssh root@<IP_DEL_VPS>
 curl -fsSL https://raw.githubusercontent.com/mrelkin83/Saas-omnicanal/main/scripts/install.sh | bash
 ```
 
-El script solicita interactivamente: dominio, email/contraseña del superadmin, API Key de IA y opcionalmente Wompi. Todo lo demás (claves JWT, ENCRYPTION_KEY, contraseña PostgreSQL) se genera automáticamente.
+**El script realiza automáticamente:**
+
+| Paso | Acción |
+|------|--------|
+| 1 | Solicita: dominio, email/contraseña del superadmin, OpenAI API Key |
+| 2 | Instala Docker + Docker Compose plugin |
+| 3 | Configura firewall `ufw` (SSH + 80 + 443) |
+| 4 | Clona el repositorio en `/opt/saas` |
+| 5 | Genera `.env` con claves seguras automáticas (JWT, ENCRYPTION_KEY, PostgreSQL password) |
+| 6 | Construye e inicia todos los servicios Docker |
+| 7 | Espera que PostgreSQL y la API estén listos (health checks) |
+| 8 | Ejecuta las migraciones de base de datos |
+| 9 | Crea la cuenta SuperAdmin |
+| 10 | Programa backup automático diario en crontab (2:00 AM) |
+| 11 | Muestra resumen con URLs, credenciales y comandos útiles |
+
+**Requisitos previos:**
+- VPS Ubuntu 22.04 LTS con acceso root
+- DNS apuntando al servidor (`A app.tudominio.co → IP_DEL_VPS`)
+- Puertos 80 y 443 accesibles desde internet
+
+**Después de la instalación**, cada tenant configura sus propias credenciales desde el dashboard:
+- **WhatsApp:** `Dashboard → Canales → Conectar WhatsApp` (escanear QR)
+- **Pagos Wompi:** `Dashboard → Integraciones → Wompi` (publicKey, privateKey, eventSecret)
+- **IA (OpenAI/Groq):** `Dashboard → Integraciones → OpenAI o Groq`
+
+> Las credenciales Wompi son **por tenant** — cada negocio usa su propia cuenta Wompi.  
+> La URL del webhook para configurar en Wompi se muestra automáticamente en la página de integraciones.
+
+**Comandos útiles post-instalación:**
+
+```bash
+# Ver estado de todos los servicios
+docker compose -f /opt/saas/docker/docker-compose.yml ps
+
+# Ver logs en tiempo real
+docker compose -f /opt/saas/docker/docker-compose.yml logs -f
+
+# Actualizar a la última versión
+cd /opt/saas && git pull && docker compose -f docker/docker-compose.yml up -d --build api web
+
+# Verificar API
+curl https://app.tudominio.co/api/health
+```
 
 ### Opción B — Manual paso a paso
 
-Ver [`DEPLOY.md`](DEPLOY.md) para la guía completa.
+Ver [`DEPLOY.md`](DEPLOY.md) para la guía completa con cada comando explicado.
 
 ---
 
