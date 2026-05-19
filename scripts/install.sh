@@ -51,7 +51,8 @@ bootstrap() {
     fi
     chmod +x "$_tmp"
     echo "Iniciando instalador..."
-    exec bash "$_tmp" </dev/tty
+    # Pasar $@ para que argumentos como el dominio lleguen al script re-ejecutado
+    exec bash "$_tmp" "$@" </dev/tty
     # exec reemplaza este proceso — nada de lo siguiente se ejecuta
   fi
 }
@@ -70,19 +71,29 @@ show_banner() {
 }
 
 # ── Configuracion ─────────────────────────────────────────────────────────────
+# Uso interactivo:  bash install.sh
+# Uso sin prompts:  bash install.sh app.tudominio.co
+# Via curl+arg:     curl -fsSL URL | bash -s -- app.tudominio.co
 collect_config() {
   header "Configuracion"
-  echo "Ingresa los datos para configurar la plataforma."
-  echo ""
 
-  # Leer desde /dev/tty para que funcione aunque stdin sea un pipe (curl|bash, etc.)
-  local _tty=/dev/tty
-  [[ ! -r "$_tty" ]] && err "No se puede acceder a /dev/tty. Ejecuta: bash $0 </dev/tty"
-
-  printf '%b[?]%b Dominio (ej: app.tudominio.co): ' "$YELLOW" "$NC"
-  read -r DOMAIN <"$_tty"
+  # Si el dominio llego como argumento, usarlo directamente (sin prompts)
+  DOMAIN="${1:-}"
   DOMAIN="${DOMAIN//$'\r'/}"
-  [[ -z "$DOMAIN" ]] && err "El dominio es obligatorio."
+
+  if [[ -z "$DOMAIN" ]]; then
+    echo "Ingresa los datos para configurar la plataforma."
+    echo ""
+
+    # Intentar leer desde /dev/tty; si falla, pedir que se pase como argumento
+    if read -r DOMAIN </dev/tty 2>/dev/null; then
+      DOMAIN="${DOMAIN//$'\r'/}"
+    fi
+
+    if [[ -z "$DOMAIN" ]]; then
+      err "No se pudo leer el dominio. Ejecuta: bash $0 app.tudominio.co"
+    fi
+  fi
 
   # Credenciales del superadmin — valores por defecto fijos
   SA_EMAIL="admin@demo.com"
@@ -101,11 +112,6 @@ collect_config() {
   echo -e "  Dominio:      ${CYAN}${DOMAIN}${NC}"
   echo -e "  SuperAdmin:   ${CYAN}${SA_EMAIL}${NC}"
   echo -e "  Directorio:   ${CYAN}${INSTALL_DIR}${NC}\n"
-
-  printf '%b[?]%b Confirmar instalacion (s/N): ' "$YELLOW" "$NC"
-  read -r CONFIRM <"$_tty"
-  CONFIRM="${CONFIRM//$'\r'/}"
-  [[ ! "$CONFIRM" =~ ^[sS]$ ]] && { echo "Instalacion cancelada."; exit 0; }
   echo ""
 }
 
@@ -372,7 +378,7 @@ INFO
 # ── Main ──────────────────────────────────────────────────────────────────────
 main() {
   # PRIMER paso siempre: garantizar que stdin sea el terminal real
-  bootstrap
+  bootstrap "$@"
 
   mkdir -p "$(dirname "$LOG_FILE")"
   touch "$LOG_FILE"
@@ -380,7 +386,7 @@ main() {
   show_banner
   [[ $EUID -ne 0 ]] && err "Ejecuta como root: sudo bash $0"
 
-  collect_config
+  collect_config "$@"
   install_system_deps
   install_docker
   configure_firewall
