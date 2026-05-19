@@ -29,7 +29,7 @@ RUN pnpm --filter @saas/shared build && \
     pnpm --filter @app/api build
 
 # Deploy produces a self-contained dir with only production node_modules
-RUN pnpm --filter @app/api deploy --prod /deploy/api
+RUN pnpm --filter @app/api deploy --prod --legacy /deploy/api
 
 ##
 ## Stage 2 — minimal production image
