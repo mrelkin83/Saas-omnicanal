@@ -45,7 +45,10 @@ ENV NODE_ENV=production
 RUN addgroup -g 1001 -S nodejs && \
     adduser  -S nodejs -u 1001
 
-# Compiled API
+# package.json is required so Node.js treats .js files as ESM ("type":"module")
+COPY --from=builder --chown=nodejs:nodejs /monorepo/apps/api/package.json ./package.json
+
+# Compiled API (includes dist/scripts/ now that .dockerignore allows it)
 COPY --from=builder --chown=nodejs:nodejs /monorepo/apps/api/dist ./dist
 
 # Production node_modules (workspace packages bundled by pnpm deploy)

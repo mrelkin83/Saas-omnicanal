@@ -232,12 +232,11 @@ start_services() {
   dc down -v --remove-orphans 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container|Volume|Network)" || true
 
   info "Construyendo imagenes Docker (puede tardar 10-20 min en primer arranque)..."
-  # --no-cache garantiza que las migraciones queden en la imagen aunque Docker
-  # tenga capas previas cacheadas de una instalacion anterior fallida.
-  dc build --no-cache api 2>&1 | tee -a "$LOG_FILE" \
-    | grep -E "^( => | --- |Step |#)" || true
-  dc up -d 2>&1 | tee -a "$LOG_FILE" \
-    | grep -E "^(Container |Network |Volume )" || true
+  # No usamos --no-cache: Docker invalida el cache automaticamente desde la
+  # primera capa que cambio en el Dockerfile (COPY migrations, package.json, etc.)
+  # Importante: NO agregar || true — si el build falla, queremos parar aqui.
+  dc build api 2>&1 | tee -a "$LOG_FILE"
+  dc up -d 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container |Network |Volume )" || true
 
   info "Esperando PostgreSQL..."
   local n=0
@@ -278,14 +277,17 @@ start_services() {
 
 # ── Migraciones ───────────────────────────────────────────────────────────────
 # Las migraciones corren automaticamente al iniciar el API (antes de app.listen).
-# Esta funcion solo verifica que la tabla principal exista como confirmacion.
+# Si el API respondio al healthcheck pero las tablas no existen, algo fallo.
 run_migrations() {
   header "Verificando migraciones"
   if dc exec -T postgres psql -U saas -d saas_omnichannel \
-      -c "SELECT 1 FROM tenants LIMIT 1" >/dev/null 2>&1; then
+      -c "SELECT 1 FROM channel_sessions LIMIT 1" >/dev/null 2>&1; then
     log "Migraciones verificadas (tablas presentes)"
   else
-    warn "Las tablas aun no existen — el API pudo haber fallado al migrar. Revisa: dc logs api"
+    echo ""
+    warn "=== Ultimas lineas de logs del API (migraciones) ==="
+    dc logs --tail 40 api 2>&1 | tee -a "$LOG_FILE" || true
+    err "Las tablas no existen tras el arranque del API. Ver log: dc logs api"
   fi
 }
 
