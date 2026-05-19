@@ -222,8 +222,13 @@ ENVFILE
 # ── Servicios Docker ──────────────────────────────────────────────────────────
 start_services() {
   header "Iniciando servicios"
-  info "Construyendo imagenes Docker (puede tardar 10-20 min en primer arranque)..."
   cd "$INSTALL_DIR"
+
+  # Limpiar estado anterior (contenedores + volúmenes) para evitar credenciales stale
+  info "Limpiando instalacion anterior si existe..."
+  docker compose -f docker/docker-compose.yml down -v --remove-orphans 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container|Volume|Network)" || true
+
+  info "Construyendo imagenes Docker (puede tardar 10-20 min en primer arranque)..."
   docker compose -f docker/docker-compose.yml up -d --build 2>&1 | tee -a "$LOG_FILE" \
     | grep -E "^( => | --- |Container |Network |Volume |#)" || true
 
@@ -231,7 +236,13 @@ start_services() {
   local n=0
   until docker compose -f docker/docker-compose.yml exec -T postgres \
         pg_isready -U saas -d saas_omnichannel >/dev/null 2>&1; do
-    n=$((n+1)); [[ $n -ge 60 ]] && err "PostgreSQL no respondio. Ver: docker compose logs postgres"
+    n=$((n+1))
+    if [[ $n -ge 60 ]]; then
+      echo ""
+      warn "=== Ultimas lineas de logs de postgres ==="
+      docker compose -f docker/docker-compose.yml logs --tail 30 postgres 2>&1 | tee -a "$LOG_FILE" || true
+      err "PostgreSQL no respondio en 120s. Ver log completo: docker compose -f $INSTALL_DIR/docker/docker-compose.yml logs postgres"
+    fi
     printf '.'
     sleep 2
   done
@@ -241,7 +252,13 @@ start_services() {
   info "Esperando API..."
   n=0
   until curl -sf http://localhost:3001/health >/dev/null 2>&1; do
-    n=$((n+1)); [[ $n -ge 60 ]] && err "API no respondio. Ver: docker compose logs api"
+    n=$((n+1))
+    if [[ $n -ge 60 ]]; then
+      echo ""
+      warn "=== Ultimas lineas de logs de api ==="
+      docker compose -f docker/docker-compose.yml logs --tail 30 api 2>&1 | tee -a "$LOG_FILE" || true
+      err "API no respondio en 120s. Ver log completo: docker compose -f $INSTALL_DIR/docker/docker-compose.yml logs api"
+    fi
     printf '.'
     sleep 2
   done
