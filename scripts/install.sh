@@ -28,6 +28,12 @@ gen_hex32()  { openssl rand -hex 32; }
 gen_secret() { openssl rand -hex 48 | cut -c1-64; }
 gen_key32()  { openssl rand -base64 32 | tr -d '\n'; }
 
+# Wrapper que garantiza que docker compose siempre use el .env correcto.
+# Sin --env-file, compose busca el .env en el directorio del compose file
+# (/opt/saas/docker/) en lugar del directorio raiz (/opt/saas/).
+dc() { docker compose -f "$INSTALL_DIR/docker/docker-compose.yml" \
+              --env-file "$INSTALL_DIR/.env" "$@"; }
+
 # ── Auto-bootstrap ────────────────────────────────────────────────────────────
 # Cuando se ejecuta via "curl | bash", stdin es la pipe de curl, no el terminal.
 # Detectamos eso con -t 0 (stdin es tty?) y si no lo es, descargamos el script
@@ -231,22 +237,21 @@ start_services() {
 
   # Limpiar estado anterior (contenedores + volúmenes) para evitar credenciales stale
   info "Limpiando instalacion anterior si existe..."
-  docker compose -f docker/docker-compose.yml down -v --remove-orphans 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container|Volume|Network)" || true
+  dc down -v --remove-orphans 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container|Volume|Network)" || true
 
   info "Construyendo imagenes Docker (puede tardar 10-20 min en primer arranque)..."
-  docker compose -f docker/docker-compose.yml up -d --build 2>&1 | tee -a "$LOG_FILE" \
+  dc up -d --build 2>&1 | tee -a "$LOG_FILE" \
     | grep -E "^( => | --- |Container |Network |Volume |#)" || true
 
   info "Esperando PostgreSQL..."
   local n=0
-  until docker compose -f docker/docker-compose.yml exec -T postgres \
-        pg_isready -U saas -d saas_omnichannel >/dev/null 2>&1; do
+  until dc exec -T postgres pg_isready -U saas -d saas_omnichannel >/dev/null 2>&1; do
     n=$((n+1))
     if [[ $n -ge 60 ]]; then
       echo ""
       warn "=== Ultimas lineas de logs de postgres ==="
-      docker compose -f docker/docker-compose.yml logs --tail 30 postgres 2>&1 | tee -a "$LOG_FILE" || true
-      err "PostgreSQL no respondio en 120s. Ver log completo: docker compose -f $INSTALL_DIR/docker/docker-compose.yml logs postgres"
+      dc logs --tail 30 postgres 2>&1 | tee -a "$LOG_FILE" || true
+      err "PostgreSQL no respondio en 120s. Ver log completo: dc logs postgres"
     fi
     printf '.'
     sleep 2
@@ -261,8 +266,8 @@ start_services() {
     if [[ $n -ge 60 ]]; then
       echo ""
       warn "=== Ultimas lineas de logs de api ==="
-      docker compose -f docker/docker-compose.yml logs --tail 30 api 2>&1 | tee -a "$LOG_FILE" || true
-      err "API no respondio en 120s. Ver log completo: docker compose -f $INSTALL_DIR/docker/docker-compose.yml logs api"
+      dc logs --tail 30 api 2>&1 | tee -a "$LOG_FILE" || true
+      err "API no respondio en 120s. Ver log completo: dc logs api"
     fi
     printf '.'
     sleep 2
@@ -274,8 +279,7 @@ start_services() {
 # ── Migraciones ───────────────────────────────────────────────────────────────
 run_migrations() {
   header "Migraciones de base de datos"
-  cd "$INSTALL_DIR"
-  docker compose -f docker/docker-compose.yml exec -T api \
+  dc exec -T api \
     node -e "
       import('./dist/packages/db/src/migrate.js')
         .then(m => { return m.runMigrations ? m.runMigrations() : m.default(); })
@@ -283,14 +287,13 @@ run_migrations() {
         .catch(e => { console.error('Error:', e.message); process.exit(1); })
     " 2>&1 | tee -a "$LOG_FILE" \
     && log "Migraciones aplicadas" \
-    || warn "Error en migraciones. Revisa: docker compose logs api"
+    || warn "Error en migraciones. Revisa: dc logs api"
 }
 
 # ── SuperAdmin ────────────────────────────────────────────────────────────────
 create_superadmin() {
   header "Creando SuperAdmin"
-  cd "$INSTALL_DIR"
-  docker compose -f docker/docker-compose.yml exec -T api \
+  dc exec -T api \
     node dist/scripts/create-superadmin.js "$SA_EMAIL" "$SA_PASSWORD" "$SA_NAME" \
     2>&1 | tee -a "$LOG_FILE" \
     && log "SuperAdmin: $SA_EMAIL" \
@@ -315,7 +318,7 @@ show_summary() {
   _ip=$(curl -sf https://ifconfig.me 2>/dev/null || echo "IP_DEL_VPS")
 
   echo ""
-  docker compose -f "$INSTALL_DIR/docker/docker-compose.yml" ps 2>/dev/null | tee -a "$LOG_FILE" || true
+  dc ps 2>/dev/null | tee -a "$LOG_FILE" || true
   echo ""
   div
   echo -e "\n${BOLD}${GREEN}Instalacion completada!${NC}\n"
@@ -334,9 +337,9 @@ show_summary() {
   echo -e "  4. Pagos:  Dashboard > Integraciones > Wompi (por tenant)"
   echo ""
   echo -e "${BOLD}Comandos utiles:${NC}"
-  echo -e "  docker compose -f ${INSTALL_DIR}/docker/docker-compose.yml ps"
-  echo -e "  docker compose -f ${INSTALL_DIR}/docker/docker-compose.yml logs -f"
-  echo -e "  cd ${INSTALL_DIR} && git pull && docker compose -f docker/docker-compose.yml up -d --build api web"
+  echo -e "  docker compose -f ${INSTALL_DIR}/docker/docker-compose.yml --env-file ${INSTALL_DIR}/.env ps"
+  echo -e "  docker compose -f ${INSTALL_DIR}/docker/docker-compose.yml --env-file ${INSTALL_DIR}/.env logs -f"
+  echo -e "  cd ${INSTALL_DIR} && git pull && docker compose -f docker/docker-compose.yml --env-file .env up -d --build api web"
   echo ""
 
   cat > "$INSTALL_DIR/INSTALL_INFO.txt" << INFO
