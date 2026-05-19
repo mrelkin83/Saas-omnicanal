@@ -75,8 +75,7 @@ collect_config() {
   echo "Ingresa los datos para configurar la plataforma."
   echo ""
 
-  # Leer siempre desde /dev/tty para que funcione aunque stdin sea un pipe
-  # (curl|bash, here-strings, etc.) o en sesiones SSH sin TTY asignado.
+  # Leer desde /dev/tty para que funcione aunque stdin sea un pipe (curl|bash, etc.)
   local _tty=/dev/tty
   [[ ! -r "$_tty" ]] && err "No se puede acceder a /dev/tty. Ejecuta: bash $0 </dev/tty"
 
@@ -85,21 +84,10 @@ collect_config() {
   DOMAIN="${DOMAIN//$'\r'/}"
   [[ -z "$DOMAIN" ]] && err "El dominio es obligatorio."
 
-  printf '%b[?]%b Email del superadmin: ' "$YELLOW" "$NC"
-  read -r SA_EMAIL <"$_tty"
-  SA_EMAIL="${SA_EMAIL//$'\r'/}"
-  [[ -z "$SA_EMAIL" ]] && err "El email es obligatorio."
-
-  printf '%b[?]%b Nombre del superadmin [Super Admin]: ' "$YELLOW" "$NC"
-  read -r SA_NAME <"$_tty"
-  SA_NAME="${SA_NAME//$'\r'/}"
-  SA_NAME="${SA_NAME:-Super Admin}"
-
-  printf '%b[?]%b Contrasena del superadmin (min 8 caracteres): ' "$YELLOW" "$NC"
-  read -rs SA_PASSWORD <"$_tty"
-  SA_PASSWORD="${SA_PASSWORD//$'\r'/}"
-  echo ""
-  [[ ${#SA_PASSWORD} -lt 8 ]] && err "La contrasena debe tener minimo 8 caracteres."
+  # Credenciales del superadmin — valores por defecto fijos
+  SA_EMAIL="admin@demo.com"
+  SA_NAME="Administrador"
+  SA_PASSWORD="admin123"
 
   info "Generando claves seguras..."
   POSTGRES_PASSWORD=$(gen_hex32)
@@ -244,8 +232,12 @@ start_services() {
   dc down -v --remove-orphans 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container|Volume|Network)" || true
 
   info "Construyendo imagenes Docker (puede tardar 10-20 min en primer arranque)..."
-  dc up -d --build 2>&1 | tee -a "$LOG_FILE" \
-    | grep -E "^( => | --- |Container |Network |Volume |#)" || true
+  # --no-cache garantiza que las migraciones queden en la imagen aunque Docker
+  # tenga capas previas cacheadas de una instalacion anterior fallida.
+  dc build --no-cache api 2>&1 | tee -a "$LOG_FILE" \
+    | grep -E "^( => | --- |Step |#)" || true
+  dc up -d 2>&1 | tee -a "$LOG_FILE" \
+    | grep -E "^(Container |Network |Volume )" || true
 
   info "Esperando PostgreSQL..."
   local n=0
