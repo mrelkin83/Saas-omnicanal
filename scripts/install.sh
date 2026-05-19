@@ -261,13 +261,14 @@ start_services() {
 
   info "Esperando API..."
   n=0
-  until curl -sf http://localhost:3001/health >/dev/null 2>&1; do
+  # El puerto 3001 no esta expuesto al host — verificar desde dentro del contenedor
+  until dc exec -T api wget -qO- http://localhost:3001/health >/dev/null 2>&1; do
     n=$((n+1))
-    if [[ $n -ge 60 ]]; then
+    if [[ $n -ge 90 ]]; then
       echo ""
       warn "=== Ultimas lineas de logs de api ==="
       dc logs --tail 30 api 2>&1 | tee -a "$LOG_FILE" || true
-      err "API no respondio en 120s. Ver log completo: dc logs api"
+      err "API no respondio en 180s. Ver log completo: dc logs api"
     fi
     printf '.'
     sleep 2
