@@ -62,6 +62,10 @@ show_banner() {
 }
 
 # ── Recolección de variables ───────────────────────────────────────────────────
+# Los terminales SSH envían \r\n al presionar Enter. bash `read` no descarta \r,
+# lo que rompe comparaciones de strings. strip_cr elimina \r de cada variable.
+strip_cr() { local -n _ref=$1; _ref="${_ref//$'\r'/}"; }
+
 collect_config() {
   # Cuando el script llega via curl | bash, stdin es la pipe (ya agotada).
   # Redirigimos stdin desde /dev/tty para que los read lean del terminal real.
@@ -73,32 +77,32 @@ collect_config() {
 
   # Dominio
   ask "Dominio de la aplicación (ej: app.tudominio.co):"
-  read -r DOMAIN
+  read -r DOMAIN; strip_cr DOMAIN
   [[ -z "$DOMAIN" ]] && error "El dominio es obligatorio."
 
   # Email superadmin
   ask "Email del superadmin:"
-  read -r SA_EMAIL
+  read -r SA_EMAIL; strip_cr SA_EMAIL
   [[ -z "$SA_EMAIL" ]] && error "El email es obligatorio."
 
   # Nombre superadmin
   ask "Nombre del superadmin [Super Admin]:"
-  read -r SA_NAME
+  read -r SA_NAME; strip_cr SA_NAME
   SA_NAME="${SA_NAME:-Super Admin}"
 
   # Password superadmin
   ask "Contraseña del superadmin (mínimo 8 caracteres):"
-  read -rs SA_PASSWORD
+  read -rs SA_PASSWORD; strip_cr SA_PASSWORD
   echo ""
   [[ ${#SA_PASSWORD} -lt 8 ]] && error "La contraseña debe tener al menos 8 caracteres."
 
   # OpenAI
   ask "OpenAI API Key (sk-... o gsk-... para Groq):"
-  read -r OPENAI_API_KEY
+  read -r OPENAI_API_KEY; strip_cr OPENAI_API_KEY
   [[ -z "$OPENAI_API_KEY" ]] && warn "Sin API Key de IA el agente no funcionará. Configúrala luego en .env"
 
   ask "Modelo LLM a usar [gpt-4o-mini]:"
-  read -r LLM_MODEL
+  read -r LLM_MODEL; strip_cr LLM_MODEL
   LLM_MODEL="${LLM_MODEL:-gpt-4o-mini}"
 
   # Generar secretos automáticos
@@ -116,7 +120,7 @@ collect_config() {
   echo -e "  Directorio:   ${CYAN}${INSTALL_DIR}${NC}"
   echo ""
   ask "¿Continuar con la instalación? (s/N):"
-  read -r CONFIRM
+  read -r CONFIRM; strip_cr CONFIRM
   [[ ! "$CONFIRM" =~ ^[sS]$ ]] && { echo "Instalación cancelada."; exit 0; }
 }
 
