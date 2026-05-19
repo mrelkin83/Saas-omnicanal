@@ -22,6 +22,7 @@ RUN pnpm install --frozen-lockfile
 # Copy source and build workspace packages + API
 COPY packages/shared/src packages/shared/src
 COPY packages/db/src packages/db/src
+COPY packages/db/migrations packages/db/migrations
 COPY apps/api/src apps/api/src
 
 RUN pnpm --filter @saas/shared build && \
@@ -30,6 +31,9 @@ RUN pnpm --filter @saas/shared build && \
 
 # Deploy produces a self-contained dir with only production node_modules
 RUN pnpm --filter @app/api deploy --prod --legacy /deploy/api
+
+# pnpm deploy does not copy non-JS package assets; include migrations explicitly
+RUN cp -r /monorepo/packages/db/migrations /deploy/api/node_modules/@saas/db/migrations
 
 ##
 ## Stage 2 — minimal production image

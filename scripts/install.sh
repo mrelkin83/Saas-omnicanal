@@ -75,24 +75,28 @@ collect_config() {
   echo "Ingresa los datos para configurar la plataforma."
   echo ""
 
-  # En este punto stdin ya es el terminal (garantizado por bootstrap)
+  # Leer siempre desde /dev/tty para que funcione aunque stdin sea un pipe
+  # (curl|bash, here-strings, etc.) o en sesiones SSH sin TTY asignado.
+  local _tty=/dev/tty
+  [[ ! -r "$_tty" ]] && err "No se puede acceder a /dev/tty. Ejecuta: bash $0 </dev/tty"
+
   printf '%b[?]%b Dominio (ej: app.tudominio.co): ' "$YELLOW" "$NC"
-  read -r DOMAIN
+  read -r DOMAIN <"$_tty"
   DOMAIN="${DOMAIN//$'\r'/}"
   [[ -z "$DOMAIN" ]] && err "El dominio es obligatorio."
 
   printf '%b[?]%b Email del superadmin: ' "$YELLOW" "$NC"
-  read -r SA_EMAIL
+  read -r SA_EMAIL <"$_tty"
   SA_EMAIL="${SA_EMAIL//$'\r'/}"
   [[ -z "$SA_EMAIL" ]] && err "El email es obligatorio."
 
   printf '%b[?]%b Nombre del superadmin [Super Admin]: ' "$YELLOW" "$NC"
-  read -r SA_NAME
+  read -r SA_NAME <"$_tty"
   SA_NAME="${SA_NAME//$'\r'/}"
   SA_NAME="${SA_NAME:-Super Admin}"
 
   printf '%b[?]%b Contrasena del superadmin (min 8 caracteres): ' "$YELLOW" "$NC"
-  read -rs SA_PASSWORD
+  read -rs SA_PASSWORD <"$_tty"
   SA_PASSWORD="${SA_PASSWORD//$'\r'/}"
   echo ""
   [[ ${#SA_PASSWORD} -lt 8 ]] && err "La contrasena debe tener minimo 8 caracteres."
@@ -111,7 +115,7 @@ collect_config() {
   echo -e "  Directorio:   ${CYAN}${INSTALL_DIR}${NC}\n"
 
   printf '%b[?]%b Confirmar instalacion (s/N): ' "$YELLOW" "$NC"
-  read -r CONFIRM
+  read -r CONFIRM <"$_tty"
   CONFIRM="${CONFIRM//$'\r'/}"
   [[ ! "$CONFIRM" =~ ^[sS]$ ]] && { echo "Instalacion cancelada."; exit 0; }
   echo ""
@@ -259,36 +263,38 @@ start_services() {
   echo ""
   log "PostgreSQL listo"
 
-  info "Esperando API..."
+  # El API corre migraciones en startup — esperar hasta que el proceso complete
+  # (puede tardar ~30s en primer arranque mientras aplica todas las migraciones)
+  info "Esperando API (incluye migraciones en primer arranque)..."
   n=0
-  # El puerto 3001 no esta expuesto al host — verificar desde dentro del contenedor
-  until dc exec -T api wget -qO- http://localhost:3001/health >/dev/null 2>&1; do
+  until dc exec -T api node --input-type=module \
+    -e 'const r=await fetch("http://localhost:3001/health").catch(()=>null);process.exit(r?.ok?0:1)' \
+    >/dev/null 2>&1; do
     n=$((n+1))
-    if [[ $n -ge 90 ]]; then
+    if [[ $n -ge 120 ]]; then
       echo ""
       warn "=== Ultimas lineas de logs de api ==="
       dc logs --tail 30 api 2>&1 | tee -a "$LOG_FILE" || true
-      err "API no respondio en 180s. Ver log completo: dc logs api"
+      err "API no respondio en 240s. Ver log completo: dc logs api"
     fi
     printf '.'
     sleep 2
   done
   echo ""
-  log "API lista en :3001"
+  log "API lista en :3001 (migraciones aplicadas)"
 }
 
 # ── Migraciones ───────────────────────────────────────────────────────────────
+# Las migraciones corren automaticamente al iniciar el API (antes de app.listen).
+# Esta funcion solo verifica que la tabla principal exista como confirmacion.
 run_migrations() {
-  header "Migraciones de base de datos"
-  dc exec -T api \
-    node -e "
-      import('./dist/packages/db/src/migrate.js')
-        .then(m => { return m.runMigrations ? m.runMigrations() : m.default(); })
-        .then(() => { console.log('OK'); process.exit(0); })
-        .catch(e => { console.error('Error:', e.message); process.exit(1); })
-    " 2>&1 | tee -a "$LOG_FILE" \
-    && log "Migraciones aplicadas" \
-    || warn "Error en migraciones. Revisa: dc logs api"
+  header "Verificando migraciones"
+  if dc exec -T postgres psql -U saas -d saas_omnichannel \
+      -c "SELECT 1 FROM tenants LIMIT 1" >/dev/null 2>&1; then
+    log "Migraciones verificadas (tablas presentes)"
+  else
+    warn "Las tablas aun no existen — el API pudo haber fallado al migrar. Revisa: dc logs api"
+  fi
 }
 
 # ── SuperAdmin ────────────────────────────────────────────────────────────────
