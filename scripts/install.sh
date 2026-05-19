@@ -164,6 +164,11 @@ clone_repo() {
     warn "Ya existe $INSTALL_DIR — actualizando con git pull..."
     git -C "$INSTALL_DIR" pull origin main 2>&1 | tee -a "$LOG_FILE" || true
   else
+    # Directorio existe pero sin .git (clon previo incompleto) — limpiar
+    if [[ -d "$INSTALL_DIR" ]]; then
+      warn "Directorio $INSTALL_DIR incompleto — eliminando y clonando de nuevo..."
+      rm -rf "$INSTALL_DIR"
+    fi
     git clone "$REPO_URL" "$INSTALL_DIR" 2>&1 | tee -a "$LOG_FILE"
   fi
   log "Repositorio listo en $INSTALL_DIR"
