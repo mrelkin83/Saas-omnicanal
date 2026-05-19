@@ -322,6 +322,30 @@ create_superadmin() {
     || warn "Error creando superadmin. Intento manual: ver DEPLOY.md"
 }
 
+# ── Verificar login ───────────────────────────────────────────────────────────
+verify_login() {
+  header "Verificando login superadmin"
+  local result http_code
+  # Esperar hasta 30s a que Caddy obtenga el certificado TLS
+  local n=0
+  until result=$(curl -sf -w '\n%{http_code}' -X POST "https://${DOMAIN}/api/superadmin/auth/login" \
+      -H "Content-Type: application/json" \
+      -d "{\"email\":\"${SA_EMAIL}\",\"password\":\"${SA_PASSWORD}\"}" \
+      --max-time 10 2>/dev/null) && \
+      http_code=$(echo "$result" | tail -1) && [[ "$http_code" == "200" ]]; do
+    n=$((n+1))
+    if [[ $n -ge 6 ]]; then
+      warn "No se pudo verificar el login via HTTPS (Caddy puede necesitar unos minutos para el certificado TLS)"
+      warn "Prueba manualmente: https://${DOMAIN}/superadmin/login"
+      return
+    fi
+    printf '.'
+    sleep 5
+  done
+  echo ""
+  log "Login verificado OK — https://${DOMAIN}/superadmin/login funciona correctamente"
+}
+
 # ── Backups ───────────────────────────────────────────────────────────────────
 setup_backups() {
   header "Backups automaticos"
@@ -350,8 +374,9 @@ show_summary() {
   echo -e "  SuperAdmin: ${CYAN}https://${DOMAIN}/superadmin${NC}"
   echo -e "  Docs API:   ${CYAN}https://${DOMAIN}/api/docs${NC}"
   echo ""
-  echo -e "  SuperAdmin email: ${CYAN}${SA_EMAIL}${NC}"
-  echo -e "  Config:           ${CYAN}${INSTALL_DIR}/.env${NC}"
+  echo -e "  SuperAdmin email:    ${CYAN}${SA_EMAIL}${NC}"
+  echo -e "  SuperAdmin password: ${CYAN}${SA_PASSWORD}${NC}"
+  echo -e "  Config:              ${CYAN}${INSTALL_DIR}/.env${NC}"
   echo -e "  Log:              ${CYAN}${LOG_FILE}${NC}"
   echo ""
   echo -e "${BOLD}Proximos pasos:${NC}"
@@ -371,6 +396,7 @@ SaaS Omnicanal — Instalacion
 Fecha:      $(date '+%Y-%m-%d %H:%M:%S')
 Dominio:    https://${DOMAIN}
 Admin:      ${SA_EMAIL}
+Password:   ${SA_PASSWORD}
 Dir:        ${INSTALL_DIR}
 Log:        ${LOG_FILE}
 INFO
@@ -397,6 +423,7 @@ main() {
   start_services
   run_migrations
   create_superadmin
+  verify_login
   setup_backups
   show_summary
 }
