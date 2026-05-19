@@ -3,18 +3,22 @@ import { db, tenants, and, eq, lte, isNull, isNotNull } from '@saas/db';
 let timer: ReturnType<typeof setInterval> | null = null;
 
 async function checkExpiredDemos(): Promise<void> {
-  const now = new Date();
-  await db
-    .update(tenants)
-    .set({ suspendedAt: now, suspendedReason: 'Demo vencida', updatedAt: now })
-    .where(
-      and(
-        eq(tenants.isDemo, true),
-        isNotNull(tenants.demoExpiresAt),
-        lte(tenants.demoExpiresAt, now),
-        isNull(tenants.suspendedAt),
-      ),
-    );
+  try {
+    const now = new Date();
+    await db
+      .update(tenants)
+      .set({ suspendedAt: now, suspendedReason: 'Demo vencida', updatedAt: now })
+      .where(
+        and(
+          eq(tenants.isDemo, true),
+          isNotNull(tenants.demoExpiresAt),
+          lte(tenants.demoExpiresAt, now),
+          isNull(tenants.suspendedAt),
+        ),
+      );
+  } catch {
+    // DB tables may not exist yet (migrations pending) — retry on next interval
+  }
 }
 
 export function startDemoExpiryJob(): void {
