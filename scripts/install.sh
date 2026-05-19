@@ -328,16 +328,18 @@ setup_backups() {
   mkdir -p /opt/scripts /var/backups/postgres
   cp "$INSTALL_DIR/scripts/backup-postgres.sh" /opt/scripts/
   chmod +x /opt/scripts/backup-postgres.sh
-  (crontab -l 2>/dev/null | grep -v backup-postgres
-   echo "0 2 * * * POSTGRES_USER=saas POSTGRES_DB=saas_omnichannel PG_CONTAINER=\$(docker ps --filter 'ancestor=pgvector/pgvector:pg16' -q | head -1) /opt/scripts/backup-postgres.sh >> /var/log/pg-backup.log 2>&1"
-  ) | crontab -
+  # grep -v devuelve exit 1 cuando no hay lineas que pasar (crontab vacio),
+  # lo que con pipefail mataria el script. El || true lo evita.
+  { crontab -l 2>/dev/null | grep -v backup-postgres || true
+    echo "0 2 * * * POSTGRES_USER=saas POSTGRES_DB=saas_omnichannel PG_CONTAINER=\$(docker ps --filter 'ancestor=pgvector/pgvector:pg16' -q | head -1) /opt/scripts/backup-postgres.sh >> /var/log/pg-backup.log 2>&1"
+  } | crontab - || warn "No se pudo configurar crontab — configura el backup manualmente"
   log "Backup diario a las 2:00 AM"
 }
 
 # ── Resumen ───────────────────────────────────────────────────────────────────
 show_summary() {
   local _ip
-  _ip=$(curl -sf https://ifconfig.me 2>/dev/null || echo "IP_DEL_VPS")
+  _ip=$(curl -sf --max-time 5 https://ifconfig.me 2>/dev/null || echo "IP_DEL_VPS")
 
   echo ""
   dc ps 2>/dev/null | tee -a "$LOG_FILE" || true
