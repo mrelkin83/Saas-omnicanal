@@ -1,5 +1,3 @@
-version: '3.9'
-
 # Production Docker Compose
 # Usage: docker compose -f docker/docker-compose.yml up -d
 # Prerequisites: copy .env.example to .env at repo root and fill in values
