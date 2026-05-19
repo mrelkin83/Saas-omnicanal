@@ -1,4 +1,5 @@
 import './env.js';
+import { runMigrations } from '@saas/db';
 import Fastify from 'fastify';
 
 // Plugins
@@ -132,6 +133,8 @@ await app.register(async (sa) => {
 // ── Start ─────────────────────────────────────────────────────────────────
 const start = async (): Promise<void> => {
   try {
+    app.log.info('Running database migrations...');
+    await runMigrations();
     await app.listen({ port: PORT, host: HOST });
     startInstagramPoller();
     startTikTokScraper();
