@@ -1,6 +1,6 @@
 import { Queue, Worker } from 'bullmq';
 import { db, campaigns, campaignLogs, contactListEntries, channelSessions, eq, and } from '@saas/db';
-import { redis } from '../lib/redis.js';
+import { makeBullMQConnection } from '../lib/redis.js';
 import * as evo from '../lib/evolution-api.client.js';
 
 const QUEUE_NAME = 'campaign-sender';
@@ -99,7 +99,7 @@ export async function scheduleCampaign(campaignId: string, tenantId: string, del
 }
 
 export function startCampaignSender(): void {
-  queue = new Queue(QUEUE_NAME, { connection: redis });
+  queue = new Queue(QUEUE_NAME, { connection: makeBullMQConnection() });
 
   worker = new Worker(
     QUEUE_NAME,
@@ -107,7 +107,7 @@ export function startCampaignSender(): void {
       const { campaignId, tenantId } = job.data as { campaignId: string; tenantId: string };
       await runCampaign(campaignId, tenantId);
     },
-    { connection: redis, concurrency: 2 },
+    { connection: makeBullMQConnection(), concurrency: 2 },
   );
 
   worker.on('failed', (job, err) => {

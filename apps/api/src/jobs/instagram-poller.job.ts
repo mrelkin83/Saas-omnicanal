@@ -1,6 +1,6 @@
 import { Queue, Worker } from 'bullmq';
 import { db, channelSessions, eq, and } from '@saas/db';
-import { redis } from '../lib/redis.js';
+import { makeBullMQConnection } from '../lib/redis.js';
 import { instagramDriver } from '../modules/channels/drivers/instagram/instagram.driver.js';
 import { handleIncomingMessage } from '../modules/channels/core/incoming-handler.js';
 
@@ -11,7 +11,7 @@ let queue: Queue | null = null;
 let worker: Worker | null = null;
 
 export function startInstagramPoller(): void {
-  queue = new Queue(QUEUE_NAME, { connection: redis });
+  queue = new Queue(QUEUE_NAME, { connection: makeBullMQConnection() });
 
   // Schedule recurring poll job
   queue.add('poll', {}, {
@@ -32,7 +32,7 @@ export function startInstagramPoller(): void {
         await instagramDriver.pollAndDispatch(session.externalId ?? session.tenantId);
       }
     },
-    { connection: redis, concurrency: 1 },
+    { connection: makeBullMQConnection(), concurrency: 1 },
   );
 
   worker.on('failed', (job, err) => {

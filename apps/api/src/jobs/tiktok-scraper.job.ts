@@ -1,6 +1,6 @@
 import { Queue, Worker } from 'bullmq';
 import { db, channelSessions, eq, and } from '@saas/db';
-import { redis } from '../lib/redis.js';
+import { makeBullMQConnection } from '../lib/redis.js';
 import { tiktokDriver } from '../modules/channels/drivers/tiktok/tiktok.driver.js';
 import { handleIncomingMessage } from '../modules/channels/core/incoming-handler.js';
 
@@ -11,7 +11,7 @@ let queue: Queue | null = null;
 let worker: Worker | null = null;
 
 export function startTikTokScraper(): void {
-  queue = new Queue(QUEUE_NAME, { connection: redis });
+  queue = new Queue(QUEUE_NAME, { connection: makeBullMQConnection() });
 
   queue.add('scrape', {}, {
     repeat: { every: INTERVAL_MS },
@@ -31,7 +31,7 @@ export function startTikTokScraper(): void {
         await tiktokDriver.pollAndDispatch(session.tenantId);
       }
     },
-    { connection: redis, concurrency: 1 },
+    { connection: makeBullMQConnection(), concurrency: 1 },
   );
 
   worker.on('failed', (job, err) => {
