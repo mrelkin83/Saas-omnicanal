@@ -1,104 +1,96 @@
 #!/bin/bash
 # =============================================================================
-# Instalador automático — SaaS Omnicanal
+# Instalador automatico — SaaS Omnicanal
 # Uso: curl -fsSL https://raw.githubusercontent.com/mrelkin83/Saas-omnicanal/main/scripts/install.sh | bash
 #      o bien: bash scripts/install.sh
-#
-# Compatible con: Ubuntu 22.04 / 24.04 LTS
-# Requiere: acceso root
+# Compatible: Ubuntu 22.04 / 24.04 LTS — requiere root
 # =============================================================================
 
 set -euo pipefail
 
-# ── Colores ───────────────────────────────────────────────────────────────────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
 INSTALL_DIR="/opt/saas"
 REPO_URL="https://github.com/mrelkin83/Saas-omnicanal"
+SCRIPT_URL="https://raw.githubusercontent.com/mrelkin83/Saas-omnicanal/main/scripts/install.sh"
 LOG_FILE="/var/log/saas-install.log"
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-log()     { echo -e "${GREEN}[OK]${NC} $*" | tee -a "$LOG_FILE"; }
-warn()    { echo -e "${YELLOW}[!]${NC} $*"  | tee -a "$LOG_FILE"; }
-error()   { echo -e "${RED}[ERROR]${NC} $*" | tee -a "$LOG_FILE"; exit 1; }
-info()    { echo -e "${BLUE}[...]${NC} $*"  | tee -a "$LOG_FILE"; }
-header()  { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}\n"; }
-divider() { echo -e "${CYAN}-----------------------------------------------------------${NC}"; }
+# ── Colores ───────────────────────────────────────────────────────────────────
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+BLUE='\033[0;34m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 
-# Lee una línea desde /dev/tty y elimina \r (SSH envía \r\n al presionar Enter)
-# Uso: readtty VAR  o  readtty -s VAR (silencioso para contraseñas)
-readtty() {
-  local _silent=0
-  if [[ "${1:-}" == "-s" ]]; then
-    _silent=1
-    shift
-  fi
-  local _varname="$1"
-  local _val=""
-  if [[ $_silent -eq 1 ]]; then
-    IFS= read -rs _val < /dev/tty || true
-    echo "" >&2
-  else
-    IFS= read -r _val < /dev/tty || true
-  fi
-  _val="${_val//$'\r'/}"
-  printf -v "$_varname" '%s' "$_val"
-}
+log()    { echo -e "${GREEN}[OK]${NC} $*"    | tee -a "$LOG_FILE"; }
+warn()   { echo -e "${YELLOW}[!]${NC} $*"   | tee -a "$LOG_FILE"; }
+err()    { echo -e "${RED}[ERROR]${NC} $*"  | tee -a "$LOG_FILE"; exit 1; }
+info()   { echo -e "${BLUE}[...]${NC} $*"   | tee -a "$LOG_FILE"; }
+header() { echo -e "\n${BOLD}${CYAN}=== $* ===${NC}\n"; }
+div()    { echo -e "${CYAN}-----------------------------------------------------------${NC}"; }
 
-require_root() {
-  [[ $EUID -ne 0 ]] && error "Ejecuta como root: sudo bash $0"
-}
-
+gen_hex32()  { openssl rand -hex 32; }
 gen_secret() { openssl rand -hex 48 | cut -c1-64; }
 gen_key32()  { openssl rand -base64 32 | tr -d '\n'; }
-gen_hex32()  { openssl rand -hex 32; }
+
+# ── Auto-bootstrap ────────────────────────────────────────────────────────────
+# Cuando se ejecuta via "curl | bash", stdin es la pipe de curl, no el terminal.
+# Detectamos eso con -t 0 (stdin es tty?) y si no lo es, descargamos el script
+# a un archivo temporal y lo re-ejecutamos con stdin conectado al terminal real.
+# Esto garantiza que todos los `read` funcionen correctamente.
+bootstrap() {
+  if [[ ! -t 0 ]]; then
+    echo "Descargando instalador..."
+    local _tmp
+    _tmp=$(mktemp /tmp/saas-install-XXXXXX.sh)
+    if ! curl -fsSL "$SCRIPT_URL" -o "$_tmp" 2>/dev/null; then
+      rm -f "$_tmp"
+      echo "ERROR: No se pudo descargar el instalador. Verifica la conexion."
+      exit 1
+    fi
+    chmod +x "$_tmp"
+    echo "Iniciando instalador..."
+    exec bash "$_tmp" </dev/tty
+    # exec reemplaza este proceso — nada de lo siguiente se ejecuta
+  fi
+}
 
 # ── Banner ────────────────────────────────────────────────────────────────────
 show_banner() {
   clear
   echo -e "${BOLD}${CYAN}"
-  echo "  +-----------------------------------------------+"
-  echo "  |       SaaS Omnicanal - Autoinstalador         |"
-  echo "  |  WhatsApp . IA . Pagos . Panel SuperAdmin      |"
-  echo "  +-----------------------------------------------+"
+  echo "  +------------------------------------------------+"
+  echo "  |      SaaS Omnicanal - Autoinstalador           |"
+  echo "  |  WhatsApp . IA . Pagos . Panel SuperAdmin       |"
+  echo "  +------------------------------------------------+"
   echo -e "${NC}"
-  echo -e "  Log: ${LOG_FILE}"
+  echo -e "  Log de instalacion: ${LOG_FILE}"
   echo ""
 }
 
-# ── Recolectar configuracion ──────────────────────────────────────────────────
+# ── Configuracion ─────────────────────────────────────────────────────────────
 collect_config() {
-  header "Configuracion inicial"
-  echo "Completa los datos requeridos. Enter para valores por defecto."
+  header "Configuracion"
+  echo "Ingresa los datos para configurar la plataforma."
   echo ""
 
-  # Dominio
-  echo -n "[?] Dominio (ej: app.tudominio.co): "
-  readtty DOMAIN
-  [[ -z "$DOMAIN" ]] && error "El dominio es obligatorio."
+  # En este punto stdin ya es el terminal (garantizado por bootstrap)
+  printf '%b[?]%b Dominio (ej: app.tudominio.co): ' "$YELLOW" "$NC"
+  read -r DOMAIN
+  DOMAIN="${DOMAIN//$'\r'/}"
+  [[ -z "$DOMAIN" ]] && err "El dominio es obligatorio."
 
-  # Email superadmin
-  echo -n "[?] Email del superadmin: "
-  readtty SA_EMAIL
-  [[ -z "$SA_EMAIL" ]] && error "El email es obligatorio."
+  printf '%b[?]%b Email del superadmin: ' "$YELLOW" "$NC"
+  read -r SA_EMAIL
+  SA_EMAIL="${SA_EMAIL//$'\r'/}"
+  [[ -z "$SA_EMAIL" ]] && err "El email es obligatorio."
 
-  # Nombre superadmin
-  echo -n "[?] Nombre del superadmin [Super Admin]: "
-  readtty SA_NAME
+  printf '%b[?]%b Nombre del superadmin [Super Admin]: ' "$YELLOW" "$NC"
+  read -r SA_NAME
+  SA_NAME="${SA_NAME//$'\r'/}"
   SA_NAME="${SA_NAME:-Super Admin}"
 
-  # Password superadmin
-  echo -n "[?] Contrasena del superadmin (min 8 caracteres): "
-  readtty -s SA_PASSWORD
-  [[ ${#SA_PASSWORD} -lt 8 ]] && error "La contrasena debe tener al menos 8 caracteres."
+  printf '%b[?]%b Contrasena del superadmin (min 8 caracteres): ' "$YELLOW" "$NC"
+  read -rs SA_PASSWORD
+  SA_PASSWORD="${SA_PASSWORD//$'\r'/}"
+  echo ""
+  [[ ${#SA_PASSWORD} -lt 8 ]] && err "La contrasena debe tener minimo 8 caracteres."
 
-  # Generar secretos
   info "Generando claves seguras..."
   POSTGRES_PASSWORD=$(gen_hex32)
   JWT_SECRET=$(gen_secret)
@@ -106,93 +98,80 @@ collect_config() {
   EVOLUTION_KEY=$(gen_hex32)
 
   echo ""
-  divider
-  echo ""
-  echo -e "${BOLD}Resumen:${NC}"
-  echo -e "  Dominio:    ${CYAN}${DOMAIN}${NC}"
-  echo -e "  SuperAdmin: ${CYAN}${SA_EMAIL}${NC}"
-  echo -e "  Directorio: ${CYAN}${INSTALL_DIR}${NC}"
-  echo ""
-  echo -n "[?] Continuar con la instalacion? (s/N): "
-  readtty CONFIRM
-  if [[ ! "$CONFIRM" =~ ^[sS]$ ]]; then
-    echo "Instalacion cancelada."
-    exit 0
-  fi
+  div
+  echo -e "\n${BOLD}Resumen de instalacion:${NC}"
+  echo -e "  Dominio:      ${CYAN}${DOMAIN}${NC}"
+  echo -e "  SuperAdmin:   ${CYAN}${SA_EMAIL}${NC}"
+  echo -e "  Directorio:   ${CYAN}${INSTALL_DIR}${NC}\n"
+
+  printf '%b[?]%b Confirmar instalacion (s/N): ' "$YELLOW" "$NC"
+  read -r CONFIRM
+  CONFIRM="${CONFIRM//$'\r'/}"
+  [[ ! "$CONFIRM" =~ ^[sS]$ ]] && { echo "Instalacion cancelada."; exit 0; }
   echo ""
 }
 
-# ── Sistema y dependencias ────────────────────────────────────────────────────
+# ── Sistema ───────────────────────────────────────────────────────────────────
 install_system_deps() {
   header "Actualizando sistema"
-
-  info "Actualizando lista de paquetes..."
-  apt-get update -y 2>&1 | tee -a "$LOG_FILE" | tail -3
-
-  info "Instalando dependencias base..."
-  apt-get install -y \
+  info "Actualizando repositorios..."
+  apt-get update 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Get|Ign|Hit|Err|Reading|Building|W:)" || true
+  info "Instalando dependencias..."
+  DEBIAN_FRONTEND=noninteractive apt-get install -y \
     curl wget git jq ufw openssl ca-certificates \
     gnupg lsb-release apt-transport-https \
-    2>&1 | tee -a "$LOG_FILE" | tail -3
-
+    2>&1 | tee -a "$LOG_FILE" | grep -E "^(Setting|Unpacking|Selecting|Get|Already)" || true
   log "Dependencias instaladas"
 }
 
 # ── Docker ────────────────────────────────────────────────────────────────────
 install_docker() {
   header "Instalando Docker"
-
   if command -v docker &>/dev/null; then
     log "Docker ya instalado: $(docker --version)"
   else
-    info "Descargando e instalando Docker..."
-    curl -fsSL https://get.docker.com | sh 2>&1 | tee -a "$LOG_FILE" | tail -5
+    info "Instalando Docker (esto tarda unos minutos)..."
+    curl -fsSL https://get.docker.com | sh 2>&1 | tee -a "$LOG_FILE" | grep -E "^(#|\+|$)" | head -20 || true
     systemctl enable docker --now 2>&1 | tee -a "$LOG_FILE" || true
     log "Docker instalado: $(docker --version)"
   fi
-
-  if ! docker compose version &>/dev/null; then
+  if ! docker compose version &>/dev/null 2>&1; then
     info "Instalando Docker Compose plugin..."
-    apt-get install -y docker-compose-plugin 2>&1 | tee -a "$LOG_FILE" | tail -3
+    DEBIAN_FRONTEND=noninteractive apt-get install -y docker-compose-plugin \
+      2>&1 | tee -a "$LOG_FILE" | grep -E "^(Setting|Unpacking)" || true
   fi
-
   log "Docker Compose: $(docker compose version)"
 }
 
 # ── Firewall ──────────────────────────────────────────────────────────────────
 configure_firewall() {
   header "Configurando firewall"
-
-  ufw --force reset        >> "$LOG_FILE" 2>&1
-  ufw default deny incoming  >> "$LOG_FILE" 2>&1
-  ufw default allow outgoing >> "$LOG_FILE" 2>&1
-  ufw allow ssh              >> "$LOG_FILE" 2>&1
-  ufw allow 80/tcp           >> "$LOG_FILE" 2>&1
-  ufw allow 443/tcp          >> "$LOG_FILE" 2>&1
-  ufw allow 443/udp          >> "$LOG_FILE" 2>&1
-  ufw --force enable         >> "$LOG_FILE" 2>&1
-
+  ufw --force reset        2>&1 | tee -a "$LOG_FILE" > /dev/null
+  ufw default deny incoming  2>&1 | tee -a "$LOG_FILE" > /dev/null
+  ufw default allow outgoing 2>&1 | tee -a "$LOG_FILE" > /dev/null
+  ufw allow ssh              2>&1 | tee -a "$LOG_FILE" > /dev/null
+  ufw allow 80/tcp           2>&1 | tee -a "$LOG_FILE" > /dev/null
+  ufw allow 443/tcp          2>&1 | tee -a "$LOG_FILE" > /dev/null
+  ufw allow 443/udp          2>&1 | tee -a "$LOG_FILE" > /dev/null
+  ufw --force enable         2>&1 | tee -a "$LOG_FILE" > /dev/null
   log "Firewall activo (SSH + 80 + 443)"
 }
 
-# ── Clonar repo ───────────────────────────────────────────────────────────────
+# ── Repositorio ───────────────────────────────────────────────────────────────
 clone_repo() {
   header "Clonando repositorio"
-
   if [[ -d "$INSTALL_DIR/.git" ]]; then
-    warn "Ya existe $INSTALL_DIR — actualizando..."
-    git -C "$INSTALL_DIR" pull origin main 2>&1 | tee -a "$LOG_FILE" | tail -3
+    warn "Ya existe $INSTALL_DIR — actualizando con git pull..."
+    git -C "$INSTALL_DIR" pull origin main 2>&1 | tee -a "$LOG_FILE" || true
   else
-    git clone "$REPO_URL" "$INSTALL_DIR" 2>&1 | tee -a "$LOG_FILE" | tail -3
+    git clone "$REPO_URL" "$INSTALL_DIR" 2>&1 | tee -a "$LOG_FILE"
   fi
-
-  log "Repositorio en $INSTALL_DIR"
+  log "Repositorio listo en $INSTALL_DIR"
 }
 
-# ── Generar .env ──────────────────────────────────────────────────────────────
+# ── Variables de entorno ──────────────────────────────────────────────────────
 generate_env() {
   header "Generando .env"
-
   cat > "$INSTALL_DIR/.env" << ENVFILE
 # Base de datos
 DATABASE_URL=postgresql://saas:${POSTGRES_PASSWORD}@postgres:5432/saas_omnichannel
@@ -213,11 +192,11 @@ DOMAIN=${DOMAIN}
 API_BASE_URL=https://${DOMAIN}
 WEB_BASE_URL=https://${DOMAIN}
 
-# LLM — configura tu API key desde Dashboard > Integraciones
+# LLM — configura desde Dashboard > Integraciones
 OPENAI_API_KEY=
 OPENAI_DEFAULT_MODEL=gpt-4o-mini
 
-# WhatsApp (Evolution API)
+# WhatsApp
 EVOLUTION_API_URL=http://evolution-api:8080
 EVOLUTION_API_GLOBAL_KEY=${EVOLUTION_KEY}
 
@@ -229,8 +208,6 @@ IG_POLL_INTERVAL_SECONDS=20
 FB_RATE_LIMIT_PER_MINUTE=15
 TT_POLL_INTERVAL_SECONDS=60
 
-# Wompi — configura credenciales por tenant desde Dashboard > Integraciones
-
 # API
 API_PORT=3001
 API_HOST=0.0.0.0
@@ -238,148 +215,130 @@ WEB_PORT=3000
 NODE_ENV=production
 LOG_LEVEL=info
 ENVFILE
-
   chmod 600 "$INSTALL_DIR/.env"
-  log ".env generado"
+  log ".env generado con claves seguras"
 }
 
-# ── Iniciar servicios ─────────────────────────────────────────────────────────
+# ── Servicios Docker ──────────────────────────────────────────────────────────
 start_services() {
-  header "Iniciando servicios Docker"
-  info "El primer build puede tardar 10-20 minutos..."
-
+  header "Iniciando servicios"
+  info "Construyendo imagenes Docker (puede tardar 10-20 min en primer arranque)..."
   cd "$INSTALL_DIR"
-  docker compose -f docker/docker-compose.yml up -d --build 2>&1 | tee -a "$LOG_FILE" | tail -10
-  log "Contenedores iniciados"
+  docker compose -f docker/docker-compose.yml up -d --build 2>&1 | tee -a "$LOG_FILE" \
+    | grep -E "^( => | --- |Container |Network |Volume |#)" || true
 
   info "Esperando PostgreSQL..."
-  local retries=0
+  local n=0
   until docker compose -f docker/docker-compose.yml exec -T postgres \
-        pg_isready -U saas -d saas_omnichannel > /dev/null 2>&1; do
-    retries=$((retries + 1))
-    [[ $retries -ge 60 ]] && error "PostgreSQL no respondio en 120 segundos. Revisa: docker compose logs postgres"
+        pg_isready -U saas -d saas_omnichannel >/dev/null 2>&1; do
+    n=$((n+1)); [[ $n -ge 60 ]] && err "PostgreSQL no respondio. Ver: docker compose logs postgres"
+    printf '.'
     sleep 2
   done
+  echo ""
   log "PostgreSQL listo"
 
   info "Esperando API..."
-  retries=0
-  until curl -sf http://localhost:3001/health > /dev/null 2>&1; do
-    retries=$((retries + 1))
-    [[ $retries -ge 60 ]] && error "API no respondio en 120 segundos. Revisa: docker compose logs api"
+  n=0
+  until curl -sf http://localhost:3001/health >/dev/null 2>&1; do
+    n=$((n+1)); [[ $n -ge 60 ]] && err "API no respondio. Ver: docker compose logs api"
+    printf '.'
     sleep 2
   done
-  log "API respondiendo en localhost:3001"
+  echo ""
+  log "API lista en :3001"
 }
 
 # ── Migraciones ───────────────────────────────────────────────────────────────
 run_migrations() {
-  header "Ejecutando migraciones"
-
+  header "Migraciones de base de datos"
   cd "$INSTALL_DIR"
   docker compose -f docker/docker-compose.yml exec -T api \
     node -e "
       import('./dist/packages/db/src/migrate.js')
-        .then(m => m.runMigrations ? m.runMigrations() : m.default())
-        .then(() => { console.log('Migraciones OK'); process.exit(0); })
-        .catch(e => { console.error(e.message); process.exit(1); })
-    " 2>&1 | tee -a "$LOG_FILE" || warn "Verifica las migraciones: docker compose logs api"
-
-  log "Migraciones completadas"
+        .then(m => { return m.runMigrations ? m.runMigrations() : m.default(); })
+        .then(() => { console.log('OK'); process.exit(0); })
+        .catch(e => { console.error('Error:', e.message); process.exit(1); })
+    " 2>&1 | tee -a "$LOG_FILE" \
+    && log "Migraciones aplicadas" \
+    || warn "Error en migraciones. Revisa: docker compose logs api"
 }
 
 # ── SuperAdmin ────────────────────────────────────────────────────────────────
 create_superadmin() {
   header "Creando SuperAdmin"
-
   cd "$INSTALL_DIR"
   docker compose -f docker/docker-compose.yml exec -T api \
-    node dist/scripts/create-superadmin.js \
-      "$SA_EMAIL" "$SA_PASSWORD" "$SA_NAME" 2>&1 | tee -a "$LOG_FILE" \
-    && log "SuperAdmin creado: $SA_EMAIL" \
-    || warn "Error creando superadmin. Intenta manualmente: ver DEPLOY.md"
+    node dist/scripts/create-superadmin.js "$SA_EMAIL" "$SA_PASSWORD" "$SA_NAME" \
+    2>&1 | tee -a "$LOG_FILE" \
+    && log "SuperAdmin: $SA_EMAIL" \
+    || warn "Error creando superadmin. Intento manual: ver DEPLOY.md"
 }
 
 # ── Backups ───────────────────────────────────────────────────────────────────
 setup_backups() {
-  header "Configurando backups"
-
+  header "Backups automaticos"
   mkdir -p /opt/scripts /var/backups/postgres
   cp "$INSTALL_DIR/scripts/backup-postgres.sh" /opt/scripts/
   chmod +x /opt/scripts/backup-postgres.sh
-
-  (crontab -l 2>/dev/null | grep -v "backup-postgres"; \
-   echo "0 2 * * * POSTGRES_USER=saas POSTGRES_DB=saas_omnichannel PG_CONTAINER=\$(docker ps --filter 'ancestor=pgvector/pgvector:pg16' -q | head -1) /opt/scripts/backup-postgres.sh >> /var/log/pg-backup.log 2>&1") \
-  | crontab -
-
-  log "Backup diario a las 2:00 AM configurado"
+  (crontab -l 2>/dev/null | grep -v backup-postgres
+   echo "0 2 * * * POSTGRES_USER=saas POSTGRES_DB=saas_omnichannel PG_CONTAINER=\$(docker ps --filter 'ancestor=pgvector/pgvector:pg16' -q | head -1) /opt/scripts/backup-postgres.sh >> /var/log/pg-backup.log 2>&1"
+  ) | crontab -
+  log "Backup diario a las 2:00 AM"
 }
 
-# ── Verificacion ──────────────────────────────────────────────────────────────
-verify_installation() {
-  header "Verificacion"
-
-  cd "$INSTALL_DIR"
-  echo ""
-  docker compose -f docker/docker-compose.yml ps
-  echo ""
-
-  local health=""
-  health=$(curl -sf "http://localhost:3001/health" 2>/dev/null || echo '{"status":"sin respuesta"}')
-  echo -e "  API Health: ${CYAN}${health}${NC}"
-  divider
-}
-
-# ── Resumen final ─────────────────────────────────────────────────────────────
+# ── Resumen ───────────────────────────────────────────────────────────────────
 show_summary() {
+  local _ip
+  _ip=$(curl -sf https://ifconfig.me 2>/dev/null || echo "IP_DEL_VPS")
+
   echo ""
-  echo -e "${BOLD}${GREEN}+=========================================+${NC}"
-  echo -e "${BOLD}${GREEN}|      Instalacion completada!            |${NC}"
-  echo -e "${BOLD}${GREEN}+=========================================+${NC}"
+  docker compose -f "$INSTALL_DIR/docker/docker-compose.yml" ps 2>/dev/null | tee -a "$LOG_FILE" || true
   echo ""
-  echo -e "${BOLD}Acceso:${NC}"
+  div
+  echo -e "\n${BOLD}${GREEN}Instalacion completada!${NC}\n"
   echo -e "  App:        ${CYAN}https://${DOMAIN}${NC}"
   echo -e "  SuperAdmin: ${CYAN}https://${DOMAIN}/superadmin${NC}"
-  echo -e "  API Docs:   ${CYAN}https://${DOMAIN}/api/docs${NC}"
+  echo -e "  Docs API:   ${CYAN}https://${DOMAIN}/api/docs${NC}"
   echo ""
-  echo -e "${BOLD}SuperAdmin:${NC}"
-  echo -e "  Email:      ${CYAN}${SA_EMAIL}${NC}"
+  echo -e "  SuperAdmin email: ${CYAN}${SA_EMAIL}${NC}"
+  echo -e "  Config:           ${CYAN}${INSTALL_DIR}/.env${NC}"
+  echo -e "  Log:              ${CYAN}${LOG_FILE}${NC}"
   echo ""
   echo -e "${BOLD}Proximos pasos:${NC}"
-  echo -e "  1. Apunta el DNS: ${CYAN}${DOMAIN} -> $(curl -sf ifconfig.me 2>/dev/null || echo 'IP_DEL_VPS')${NC}"
-  echo -e "  2. Configura tu IA en: Dashboard > Integraciones > OpenAI o Groq"
-  echo -e "  3. Conecta WhatsApp: Dashboard > Canales > Nuevo canal"
-  echo -e "  4. Configura Wompi por tenant: Dashboard > Integraciones > Wompi"
+  echo -e "  1. DNS: apunta ${BOLD}${DOMAIN}${NC} -> ${CYAN}${_ip}${NC}"
+  echo -e "  2. IA:     Dashboard > Integraciones > OpenAI o Groq"
+  echo -e "  3. WA:     Dashboard > Canales > Nuevo canal (escanea QR)"
+  echo -e "  4. Pagos:  Dashboard > Integraciones > Wompi (por tenant)"
   echo ""
   echo -e "${BOLD}Comandos utiles:${NC}"
-  echo -e "  Estado:     docker compose -f ${INSTALL_DIR}/docker/docker-compose.yml ps"
-  echo -e "  Logs:       docker compose -f ${INSTALL_DIR}/docker/docker-compose.yml logs -f"
-  echo -e "  Actualizar: cd ${INSTALL_DIR} && git pull && docker compose -f docker/docker-compose.yml up -d --build api web"
-  echo ""
-  echo -e "  Config: ${CYAN}${INSTALL_DIR}/.env${NC}"
-  echo -e "  Log:    ${CYAN}${LOG_FILE}${NC}"
+  echo -e "  docker compose -f ${INSTALL_DIR}/docker/docker-compose.yml ps"
+  echo -e "  docker compose -f ${INSTALL_DIR}/docker/docker-compose.yml logs -f"
+  echo -e "  cd ${INSTALL_DIR} && git pull && docker compose -f docker/docker-compose.yml up -d --build api web"
   echo ""
 
   cat > "$INSTALL_DIR/INSTALL_INFO.txt" << INFO
-Instalacion SaaS Omnicanal
-==========================
-Fecha:        $(date '+%Y-%m-%d %H:%M:%S')
-Dominio:      https://${DOMAIN}
-SuperAdmin:   ${SA_EMAIL}
-Directorio:   ${INSTALL_DIR}
-Log:          ${LOG_FILE}
+SaaS Omnicanal — Instalacion
+Fecha:      $(date '+%Y-%m-%d %H:%M:%S')
+Dominio:    https://${DOMAIN}
+Admin:      ${SA_EMAIL}
+Dir:        ${INSTALL_DIR}
+Log:        ${LOG_FILE}
 INFO
-
   log "Info guardada en ${INSTALL_DIR}/INSTALL_INFO.txt"
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 main() {
+  # PRIMER paso siempre: garantizar que stdin sea el terminal real
+  bootstrap
+
   mkdir -p "$(dirname "$LOG_FILE")"
   touch "$LOG_FILE"
 
   show_banner
-  require_root
+  [[ $EUID -ne 0 ]] && err "Ejecuta como root: sudo bash $0"
+
   collect_config
   install_system_deps
   install_docker
@@ -390,7 +349,6 @@ main() {
   run_migrations
   create_superadmin
   setup_backups
-  verify_installation
   show_summary
 }
 
