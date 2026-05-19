@@ -160,7 +160,8 @@ clone_repo() {
   header "Clonando repositorio"
   if [[ -d "$INSTALL_DIR/.git" ]]; then
     warn "Ya existe $INSTALL_DIR — actualizando con git pull..."
-    git -C "$INSTALL_DIR" pull origin main 2>&1 | tee -a "$LOG_FILE" || true
+    git -C "$INSTALL_DIR" pull origin main 2>&1 | tee -a "$LOG_FILE" \
+      || warn "git pull fallo — continuando con el codigo existente (puede estar desactualizado)"
   else
     # Directorio existe pero sin .git (clon previo incompleto) — limpiar
     if [[ -d "$INSTALL_DIR" ]]; then
@@ -227,16 +228,19 @@ start_services() {
   header "Iniciando servicios"
   cd "$INSTALL_DIR"
 
-  # Limpiar estado anterior (contenedores + volúmenes) para evitar credenciales stale
+  # Limpiar estado anterior (contenedores + volumenes) para evitar credenciales stale
   info "Limpiando instalacion anterior si existe..."
   dc down -v --remove-orphans 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container|Volume|Network)" || true
 
-  info "Construyendo imagenes Docker (puede tardar 10-20 min en primer arranque)..."
-  # No usamos --no-cache: Docker invalida el cache automaticamente desde la
-  # primera capa que cambio en el Dockerfile (COPY migrations, package.json, etc.)
-  # Importante: NO agregar || true — si el build falla, queremos parar aqui.
+  info "Construyendo imagen API (puede tardar 10-20 min en primer arranque)..."
+  # Docker invalida el cache automaticamente desde la primera capa que cambio
+  # en el Dockerfile. NO se usa || true: un build fallido debe detener la instalacion.
   dc build api 2>&1 | tee -a "$LOG_FILE"
-  dc up -d 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container |Network |Volume )" || true
+
+  # Levantar solo postgres y redis primero para garantizar DB limpia antes
+  # de que el API intente migrar.
+  info "Iniciando base de datos..."
+  dc up -d postgres redis 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container |Network |Volume )" || true
 
   info "Esperando PostgreSQL..."
   local n=0
@@ -254,8 +258,19 @@ start_services() {
   echo ""
   log "PostgreSQL listo"
 
-  # El API corre migraciones en startup — esperar hasta que el proceso complete
-  # (puede tardar ~30s en primer arranque mientras aplica todas las migraciones)
+  # Eliminar tabla de seguimiento de drizzle si existe de una instalacion anterior
+  # donde el volumen no fue limpiado correctamente. Sin esto drizzle cree que las
+  # migraciones ya estan aplicadas y no crea las tablas.
+  info "Reseteando estado de migraciones..."
+  dc exec -T postgres psql -U saas -d saas_omnichannel \
+    -c 'DROP TABLE IF EXISTS "__drizzle_migrations"' >/dev/null 2>&1 || true
+  log "Estado de migraciones limpio"
+
+  # Levantar el resto de servicios (API correra migraciones en su startup)
+  info "Iniciando todos los servicios..."
+  dc up -d 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container |Network |Volume )" || true
+
+  # Esperar a que el API complete migraciones y responda al healthcheck
   info "Esperando API (incluye migraciones en primer arranque)..."
   n=0
   until dc exec -T api node --input-type=module \
