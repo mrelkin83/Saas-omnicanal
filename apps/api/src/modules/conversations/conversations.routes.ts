@@ -30,6 +30,15 @@ const conversationsRoutes: FastifyPluginAsync = async (fastify) => {
     return conv;
   });
 
+  fastify.get('/:id/messages', { preHandler: [requireAuth()] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const q = request.query as Record<string, string | undefined>;
+    const limit = Math.min(parseInt(q['limit'] ?? '50', 10), 100);
+    const conv = await getConversationById(request.user!.tenantId, id);
+    if (!conv) return reply.status(404).send({ error: 'Not Found', message: 'Conversación no encontrada', code: 'NOT_FOUND' });
+    return conv.messages.slice(-limit);
+  });
+
   fastify.post('/:id/messages', { preHandler: [requireAuth()] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const data = createMessageSchema.parse(request.body);

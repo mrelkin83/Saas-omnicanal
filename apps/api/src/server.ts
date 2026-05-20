@@ -30,6 +30,8 @@ import campaignsRoutes from './modules/campaigns/campaigns.routes.js';
 import groupsRoutes from './modules/groups/groups.routes.js';
 import integrationsRoutes from './modules/integrations/integrations.routes.js';
 import { startCampaignSender, stopCampaignSender } from './jobs/campaign-sender.job.js';
+import paymentsRoutes from './modules/payments/payments.routes.js';
+import messagesRoutes from './modules/messages/messages.routes.js';
 import aiRoutes from './modules/ai/ai.routes.js';
 import devRoutes from './modules/dev/dev.routes.js';
 import channelsRoutes from './modules/channels/channels.routes.js';
@@ -112,6 +114,8 @@ await app.register(async (api) => {
   await api.register(campaignsRoutes, { prefix: '/campaigns' });
   await api.register(groupsRoutes, { prefix: '/groups' });
   await api.register(integrationsRoutes, { prefix: '/integrations' });
+  await api.register(paymentsRoutes, { prefix: '/payments' });
+  await api.register(messagesRoutes, { prefix: '/messages' });
   await api.register(aiRoutes, { prefix: '/ai' });
   await api.register(devRoutes, { prefix: '/dev' });
   await api.register(channelsRoutes, { prefix: '/channels' });

@@ -17,7 +17,7 @@ async function request<T>(
 ): Promise<T> {
   const { token, ...rest } = init ?? {};
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(rest.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(rest.headers as Record<string, string> | undefined),
   };
