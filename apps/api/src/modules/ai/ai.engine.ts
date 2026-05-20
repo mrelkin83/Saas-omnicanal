@@ -1,4 +1,5 @@
 import type { Tenant } from '@saas/db';
+import { db, conversationState, eq, and } from '@saas/db';
 import { getHistory, appendHistory } from './conversation-state.service.js';
 import { buildDynamicContext } from './ai.context-builder.js';
 import { searchKnowledge, logUnanswered } from './knowledge-base.service.js';
@@ -66,6 +67,16 @@ export async function runAIEngine(
   if (parsed) {
     action = parsed.accion;
     aiResponse = await routeAction(parsed.accion, parsed.params, tenant, customerId, capabilities);
+
+    if (parsed.accion === 'ESCALAMIENTO') {
+      await db
+        .insert(conversationState)
+        .values({ tenantId, customerId, channel, state: 'AGENTE_ACTIVO' })
+        .onConflictDoUpdate({
+          target: [conversationState.tenantId, conversationState.customerId, conversationState.channel],
+          set: { state: 'AGENTE_ACTIVO', updatedAt: new Date() },
+        });
+    }
   } else if (knowledgeContext === '' && !llmResponse.trim()) {
     await logUnanswered(tenantId, customerId, conversationId, message);
   }

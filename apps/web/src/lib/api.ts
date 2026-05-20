@@ -303,6 +303,11 @@ export const api = {
     },
   },
 
+  ai: {
+    simulate: (token: string, data: { customerPhone: string; message: string; channel?: string }) =>
+      request<{ aiResponse: string; customerId: string; action: string | null }>('/api/dev/simulate-message', { method: 'POST', token, body: JSON.stringify(data) }),
+  },
+
   conversations: {
     list: (token: string, params?: { status?: string; channel?: string; withCustomer?: boolean }) => {
       const qs = new URLSearchParams();

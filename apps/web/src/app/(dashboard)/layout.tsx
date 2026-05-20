@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/campaigns', label: 'Campañas', icon: '📢' },
   { href: '/dashboard/contacts', label: 'Contactos', icon: '📋' },
   { href: '/dashboard/groups', label: 'Grupos WA', icon: '💬' },
+  { href: '/dashboard/ai-config', label: 'Probar IA', icon: '🤖' },
   { href: '/dashboard/settings/integrations', label: 'Integraciones', icon: '🔌' },
   { href: '/dashboard/settings', label: 'Configuración', icon: '⚙️' },
 ];
