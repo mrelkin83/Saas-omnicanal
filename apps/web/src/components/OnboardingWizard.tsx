@@ -49,6 +49,7 @@ export default function OnboardingWizard({ onComplete }: Props) {
         ...(business.phone.trim() ? { phone: business.phone.trim() } : {}),
         aiAgentName: agentName || 'Asistente',
         aiTone: tone,
+        capabilities,
       });
       // Persist capabilities via a second patch (they're in the same endpoint)
       // Note: capabilities field is managed via tenant config — we store it in a free-form way

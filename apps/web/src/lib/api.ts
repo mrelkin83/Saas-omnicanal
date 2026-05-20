@@ -106,7 +106,7 @@ export const api = {
 
   tenants: {
     me: (token: string) => request<TenantMe>('/api/tenants/me', { token }),
-    patch: (token: string, data: Partial<Pick<TenantMe, 'name' | 'phone' | 'address' | 'description' | 'logoUrl' | 'website' | 'aiModel' | 'aiAgentName' | 'aiTone' | 'billingEmail'> & { aiTemperature?: number; aiMaxTokens?: number }>) =>
+    patch: (token: string, data: Partial<Pick<TenantMe, 'name' | 'phone' | 'address' | 'description' | 'logoUrl' | 'website' | 'aiModel' | 'aiAgentName' | 'aiTone' | 'billingEmail' | 'capabilities'> & { aiTemperature?: number; aiMaxTokens?: number }>) =>
       request<TenantMe>('/api/tenants/me', { method: 'PATCH', token, body: JSON.stringify(data) }),
   },
 

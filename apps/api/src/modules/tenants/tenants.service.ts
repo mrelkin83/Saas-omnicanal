@@ -23,6 +23,7 @@ export async function updateTenant(id: string, data: PatchTenantInput) {
   if (data.aiAgentName !== undefined) updateData['aiAgentName'] = data.aiAgentName;
   if (data.aiTone !== undefined) updateData['aiTone'] = data.aiTone;
   if (data.billingEmail !== undefined) updateData['billingEmail'] = data.billingEmail;
+  if (data.capabilities !== undefined) updateData['capabilities'] = data.capabilities;
 
   if (Object.keys(updateData).length === 0) {
     return getTenantById(id);

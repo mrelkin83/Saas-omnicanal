@@ -13,6 +13,7 @@ export const patchTenantSchema = z.object({
   aiAgentName: z.string().max(100).optional(),
   aiTone: z.enum(['amigable', 'profesional', 'formal', 'casual']).optional(),
   billingEmail: z.string().email().optional(),
+  capabilities: z.array(z.string()).optional(),
 });
 
 export type PatchTenantInput = z.infer<typeof patchTenantSchema>;
