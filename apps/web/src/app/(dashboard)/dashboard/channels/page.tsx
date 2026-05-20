@@ -4,269 +4,400 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api } from '@/lib/api';
 
-interface WaSession {
+type ChannelKey = 'whatsapp' | 'instagram' | 'facebook' | 'tiktok';
+
+interface SessionInfo {
   id: string;
   status: string;
   displayName: string | null;
-  lastSeenAt: string | null;
 }
 
-type ModalState = 'idle' | 'connecting' | 'waiting_qr' | 'has_qr' | 'connected' | 'error';
+type AllStatus = Record<ChannelKey, SessionInfo | null>;
 
-const CHANNEL_DEFS = [
-  { key: 'whatsapp', label: 'WhatsApp', icon: '💬', color: 'var(--channel-whatsapp)' },
-  { key: 'instagram', label: 'Instagram', icon: '📸', color: 'var(--channel-instagram)' },
-  { key: 'facebook', label: 'Facebook', icon: '📘', color: 'var(--channel-facebook)' },
-  { key: 'tiktok', label: 'TikTok', icon: '🎵', color: 'var(--channel-tiktok)' },
-] as const;
+type ModalType = 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | null;
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+
+const CHANNEL_META: Record<ChannelKey, { label: string; icon: string; color: string }> = {
+  whatsapp:  { label: 'WhatsApp Business', icon: '💬', color: '#25D366' },
+  instagram: { label: 'Instagram',         icon: '📸', color: '#E1306C' },
+  facebook:  { label: 'Facebook Messenger',icon: '📘', color: '#1877F2' },
+  tiktok:    { label: 'TikTok',            icon: '🎵', color: '#010101' },
+};
 
 export default function ChannelsPage() {
   const { accessToken } = useAuthStore();
-  const [waSession, setWaSession] = useState<WaSession | null>(null);
-  const [modalState, setModalState] = useState<ModalState>('idle');
-  const [qrCode, setQrCode] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+  const [status, setStatus] = useState<AllStatus>({ whatsapp: null, instagram: null, facebook: null, tiktok: null });
+  const [modal, setModal] = useState<ModalType>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
+  // WhatsApp specific
+  const [waModalState, setWaModalState] = useState<'connecting' | 'waiting_qr' | 'has_qr' | 'connected' | 'error'>('connecting');
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const esRef = useRef<EventSource | null>(null);
+
+  // Instagram fields
+  const [igUser, setIgUser] = useState('');
+  const [igPass, setIgPass] = useState('');
+  const [ig2fa, setIg2fa] = useState('');
+  const [igNeeds2fa, setIgNeeds2fa] = useState(false);
+
+  // Facebook field
+  const [fbState, setFbState] = useState('');
+
+  // TikTok fields
+  const [ttCookies, setTtCookies] = useState('');
+  const [ttUser, setTtUser] = useState('');
+
+  const loadStatus = async () => {
     if (!accessToken) return;
-    api.channels.status(accessToken).then((s) => setWaSession(s.whatsapp)).catch(() => null);
-  }, [accessToken]);
+    try {
+      const s = await api.channels.allStatus(accessToken);
+      setStatus(s as AllStatus);
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => { void loadStatus(); }, [accessToken]);
 
   function closeModal() {
-    setShowModal(false);
-    setModalState('idle');
+    setModal(null);
+    setLoading(false);
+    setError('');
     setQrCode(null);
-    setErrorMsg('');
-    eventSourceRef.current?.close();
-    eventSourceRef.current = null;
+    setWaModalState('connecting');
+    setIgUser(''); setIgPass(''); setIg2fa(''); setIgNeeds2fa(false);
+    setFbState('');
+    setTtCookies(''); setTtUser('');
+    esRef.current?.close();
+    esRef.current = null;
   }
 
-  function startSSE() {
+  // ── WhatsApp ──────────────────────────────────────────────────────────────
+
+  async function openWhatsApp() {
     if (!accessToken) return;
+    setModal('whatsapp');
+    setWaModalState('connecting');
+    setError('');
+
     const es = new EventSource(`${API_BASE}/api/channels/whatsapp/stream?token=${encodeURIComponent(accessToken)}`);
+    esRef.current = es;
 
     es.addEventListener('qr', (e) => {
-      const data = JSON.parse(e.data) as { qrCode: string };
-      setQrCode(data.qrCode);
-      setModalState('has_qr');
+      const d = JSON.parse(e.data) as { qrCode: string };
+      setQrCode(d.qrCode);
+      setWaModalState('has_qr');
     });
-
-    es.addEventListener('connected', (e) => {
-      const data = JSON.parse(e.data) as { phone: string | null };
-      setModalState('connected');
-      setWaSession({ id: '', status: 'connected', displayName: data.phone, lastSeenAt: new Date().toISOString() });
-      setTimeout(closeModal, 3000);
+    es.addEventListener('connected', () => {
+      setWaModalState('connected');
+      void loadStatus();
+      setTimeout(closeModal, 2500);
     });
-
-    es.addEventListener('disconnected', () => {
-      setWaSession(null);
-    });
-
-    es.onerror = () => {
-      // SSE closed or errored; try to refresh QR manually
-    };
-
-    eventSourceRef.current = es;
-  }
-
-  async function handleConnectWhatsApp() {
-    if (!accessToken) return;
-    setShowModal(true);
-    setModalState('connecting');
-    setQrCode(null);
-    setErrorMsg('');
-
-    startSSE();
 
     try {
       const res = await api.channels.connectWhatsApp(accessToken);
-      if (res.qrCode) {
-        setQrCode(res.qrCode);
-        setModalState('has_qr');
-      } else {
-        setModalState('waiting_qr');
-      }
+      if (res.qrCode) { setQrCode(res.qrCode); setWaModalState('has_qr'); }
+      else setWaModalState('waiting_qr');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error al conectar';
-      setErrorMsg(msg);
-      setModalState('error');
+      setError(err instanceof Error ? err.message : 'Error al conectar');
+      setWaModalState('error');
     }
   }
 
-  async function handleDisconnect() {
-    if (!accessToken || !waSession) return;
-    try {
-      await api.channels.disconnectWhatsApp(accessToken, waSession.id);
-      setWaSession(null);
-    } catch {
-      // ignore
-    }
-  }
-
-  async function handleRefreshQR() {
+  async function refreshQR() {
     if (!accessToken) return;
     try {
       const res = await api.channels.getQR(accessToken);
       setQrCode(res.qrCode);
-      setModalState('has_qr');
-    } catch {
-      setModalState('waiting_qr');
-    }
+      setWaModalState('has_qr');
+    } catch { setWaModalState('waiting_qr'); }
   }
 
-  const isWaConnected = waSession?.status === 'connected';
+  async function disconnectChannel(ch: ChannelKey) {
+    if (!accessToken) return;
+    const session = status[ch];
+    if (!session) return;
+    setLoading(true);
+    try {
+      if (ch === 'whatsapp') await api.channels.disconnectWhatsApp(accessToken, session.id);
+      else if (ch === 'instagram') await api.channels.disconnectInstagram(accessToken, session.id);
+      else if (ch === 'facebook') await api.channels.disconnectFacebook(accessToken, session.id);
+      else if (ch === 'tiktok') await api.channels.disconnectTikTok(accessToken, session.id);
+      await loadStatus();
+    } catch { /* ignore */ } finally { setLoading(false); }
+  }
+
+  // ── Instagram ─────────────────────────────────────────────────────────────
+
+  async function connectInstagram() {
+    if (!accessToken) return;
+    setLoading(true); setError('');
+    try {
+      const res = await api.channels.connectInstagram(accessToken, {
+        username: igUser, password: igPass,
+        ...(igNeeds2fa && ig2fa ? { twoFactorCode: ig2fa } : {}),
+      });
+      if (res.requires2FA) { setIgNeeds2fa(true); setLoading(false); return; }
+      await loadStatus();
+      closeModal();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error conectando Instagram');
+    } finally { setLoading(false); }
+  }
+
+  // ── Facebook ──────────────────────────────────────────────────────────────
+
+  async function connectFacebook() {
+    if (!accessToken) return;
+    setLoading(true); setError('');
+    try {
+      await api.channels.connectFacebook(accessToken, { appState: fbState });
+      await loadStatus();
+      closeModal();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error conectando Facebook');
+    } finally { setLoading(false); }
+  }
+
+  // ── TikTok ────────────────────────────────────────────────────────────────
+
+  async function connectTikTok() {
+    if (!accessToken) return;
+    setLoading(true); setError('');
+    try {
+      await api.channels.connectTikTok(accessToken, { cookies: ttCookies, username: ttUser });
+      await loadStatus();
+      closeModal();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error conectando TikTok');
+    } finally { setLoading(false); }
+  }
+
+  const inp = {
+    padding: '10px 12px', borderRadius: 8, width: '100%', fontSize: 14,
+    border: '1px solid var(--border-default)', background: 'var(--bg-surface-2)',
+    color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' as const,
+  };
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-text-primary">Canales</h1>
-        <p className="text-text-secondary mt-1">Conecta tus canales de mensajería para atender clientes.</p>
-      </div>
+    <div style={{ padding: 32, maxWidth: 760, margin: '0 auto' }}>
+      <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>Canales</h1>
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 28px' }}>
+        Conecta tus canales de mensajería. La IA responderá automáticamente en cada canal conectado.
+      </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {CHANNEL_DEFS.map((ch) => {
-          const isWa = ch.key === 'whatsapp';
-          const connected = isWa ? isWaConnected : false;
-          const comingSoon = !isWa;
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {(Object.keys(CHANNEL_META) as ChannelKey[]).map((ch) => {
+          const meta = CHANNEL_META[ch];
+          const session = status[ch];
+          const connected = session?.status === 'connected';
 
           return (
-            <div
-              key={ch.key}
-              className="rounded-xl p-5 border flex flex-col gap-4"
-              style={{
-                background: 'var(--bg-surface-1)',
-                borderColor: connected ? ch.color : 'var(--border-default)',
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">{ch.icon}</span>
+            <div key={ch} style={{
+              padding: 20, borderRadius: 12, border: `1px solid ${connected ? meta.color : 'var(--border-default)'}`,
+              background: 'var(--bg-surface-1)', display: 'flex', flexDirection: 'column', gap: 14,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 28 }}>{meta.icon}</span>
                 <div>
-                  <p className="font-semibold text-text-primary">{ch.label}</p>
-                  {isWa && isWaConnected && (
-                    <p className="text-xs text-accent-success" style={{ color: 'var(--accent-success)' }}>
-                      Conectado {waSession?.displayName ? `· ${waSession.displayName}` : ''}
-                    </p>
-                  )}
-                  {comingSoon && (
-                    <p className="text-xs text-text-tertiary">Próximamente</p>
-                  )}
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{meta.label}</div>
+                  <div style={{ fontSize: 12, color: connected ? meta.color : 'var(--text-tertiary)', marginTop: 2 }}>
+                    {connected
+                      ? `Conectado${session?.displayName ? ` · ${session.displayName}` : ''}`
+                      : 'Sin conectar'}
+                  </div>
                 </div>
               </div>
 
-              {isWa && (
-                <div>
-                  {isWaConnected ? (
-                    <button
-                      onClick={handleDisconnect}
-                      className="w-full text-sm py-2 px-4 rounded-lg border transition-all"
-                      style={{
-                        borderColor: 'var(--accent-danger)',
-                        color: 'var(--accent-danger)',
-                        background: 'transparent',
-                      }}
-                    >
-                      Desconectar
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleConnectWhatsApp}
-                      className="w-full text-sm py-2 px-4 rounded-lg font-medium transition-all"
-                      style={{
-                        background: ch.color,
-                        color: '#fff',
-                      }}
-                    >
-                      Conectar WhatsApp
-                    </button>
-                  )}
-                </div>
+              {connected ? (
+                <button
+                  onClick={() => void disconnectChannel(ch)}
+                  disabled={loading}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, border: `1px solid var(--accent-danger, #ef4444)`,
+                    background: 'transparent', color: 'var(--accent-danger, #ef4444)',
+                    cursor: 'pointer', fontSize: 13, fontWeight: 500,
+                  }}
+                >
+                  Desconectar
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    if (ch === 'whatsapp') void openWhatsApp();
+                    else setModal(ch);
+                  }}
+                  style={{
+                    padding: '8px 16px', borderRadius: 8, border: 'none',
+                    background: meta.color, color: ch === 'tiktok' ? '#fff' : '#fff',
+                    cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                  }}
+                >
+                  Conectar {meta.label.split(' ')[0]}
+                </button>
               )}
             </div>
           );
         })}
       </div>
 
-      {/* QR Modal */}
-      {showModal && (
+      {/* ── Modal overlay ── */}
+      {modal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.7)' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}
         >
-          <div
-            className="rounded-2xl p-8 w-full max-w-sm flex flex-col items-center gap-6 relative"
-            style={{ background: 'var(--bg-surface-2)', border: '1px solid var(--border-default)' }}
-          >
-            <button
-              onClick={closeModal}
-              className="absolute top-4 right-4 text-text-tertiary hover:text-text-primary transition-colors text-lg"
-            >
-              ✕
-            </button>
+          <div style={{ background: 'var(--bg-surface-2)', border: '1px solid var(--border-default)', borderRadius: 16, padding: 32, width: '100%', maxWidth: 400, position: 'relative' }}>
+            <button onClick={closeModal} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)' }}>✕</button>
 
-            <h2 className="text-lg font-bold text-text-primary">Conectar WhatsApp</h2>
-
-            {modalState === 'connecting' && (
-              <>
-                <div className="w-12 h-12 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--channel-whatsapp)', borderTopColor: 'transparent' }} />
-                <p className="text-text-secondary text-sm">Iniciando conexión...</p>
-              </>
+            {/* WhatsApp modal */}
+            {modal === 'whatsapp' && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Conectar WhatsApp</h2>
+                {waModalState === 'connecting' || waModalState === 'waiting_qr' ? (
+                  <>
+                    <div style={{ width: 44, height: 44, borderRadius: '50%', border: `3px solid ${CHANNEL_META.whatsapp.color}`, borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
+                    <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: 0 }}>
+                      {waModalState === 'connecting' ? 'Iniciando conexión...' : 'Generando código QR...'}
+                    </p>
+                    {waModalState === 'waiting_qr' && (
+                      <button onClick={refreshQR} style={{ fontSize: 12, color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                        Actualizar QR
+                      </button>
+                    )}
+                  </>
+                ) : waModalState === 'has_qr' && qrCode ? (
+                  <>
+                    <div style={{ padding: 12, borderRadius: 12, background: '#fff' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={qrCode} alt="WhatsApp QR" width={220} height={220} />
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: '0 0 4px' }}>Escanea con WhatsApp</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0 }}>Ajustes → Dispositivos vinculados → Vincular dispositivo</p>
+                    </div>
+                    <button onClick={refreshQR} style={{ fontSize: 12, color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                      QR expirado — actualizar
+                    </button>
+                  </>
+                ) : waModalState === 'connected' ? (
+                  <>
+                    <span style={{ fontSize: 48 }}>✅</span>
+                    <p style={{ fontWeight: 600, margin: 0 }}>¡WhatsApp conectado!</p>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 48 }}>❌</span>
+                    <p style={{ fontWeight: 600, margin: 0 }}>Error al conectar</p>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, textAlign: 'center' }}>{error}</p>
+                    <button onClick={() => { closeModal(); void openWhatsApp(); }} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: CHANNEL_META.whatsapp.color, color: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+                      Reintentar
+                    </button>
+                  </>
+                )}
+              </div>
             )}
 
-            {modalState === 'waiting_qr' && (
-              <>
-                <div className="w-12 h-12 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'var(--channel-whatsapp)', borderTopColor: 'transparent' }} />
-                <p className="text-text-secondary text-sm text-center">Generando código QR...</p>
-                <button onClick={handleRefreshQR} className="text-xs underline" style={{ color: 'var(--accent-primary)' }}>
-                  Actualizar QR
-                </button>
-              </>
-            )}
-
-            {modalState === 'has_qr' && qrCode && (
-              <>
-                <div className="p-3 rounded-xl" style={{ background: '#fff' }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qrCode} alt="WhatsApp QR" width={220} height={220} />
-                </div>
-                <div className="text-center">
-                  <p className="text-text-secondary text-sm">Escanea este código con WhatsApp</p>
-                  <p className="text-text-tertiary text-xs mt-1">Ajustes → Dispositivos vinculados → Vincular un dispositivo</p>
-                </div>
-                <button onClick={handleRefreshQR} className="text-xs underline" style={{ color: 'var(--accent-primary)' }}>
-                  El QR expiró — actualizar
-                </button>
-              </>
-            )}
-
-            {modalState === 'connected' && (
-              <>
-                <div className="text-5xl">✅</div>
-                <p className="text-text-primary font-semibold">¡WhatsApp conectado!</p>
-                <p className="text-text-secondary text-sm">Ya puedes recibir y responder mensajes.</p>
-              </>
-            )}
-
-            {modalState === 'error' && (
-              <>
-                <div className="text-5xl">❌</div>
-                <p className="text-text-primary font-semibold">Error al conectar</p>
-                <p className="text-text-secondary text-sm text-center">{errorMsg}</p>
+            {/* Instagram modal */}
+            {modal === 'instagram' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Conectar Instagram</h2>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+                  Usa una cuenta secundaria. No uses tu cuenta personal principal.
+                </p>
+                {!igNeeds2fa ? (
+                  <>
+                    <div>
+                      <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Usuario</label>
+                      <input value={igUser} onChange={(e) => setIgUser(e.target.value)} placeholder="@usuario" style={inp} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Contraseña</label>
+                      <input type="password" value={igPass} onChange={(e) => setIgPass(e.target.value)} placeholder="••••••••" style={inp} />
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Código de verificación (2FA)</label>
+                    <input value={ig2fa} onChange={(e) => setIg2fa(e.target.value)} placeholder="123456" style={inp} autoFocus />
+                  </div>
+                )}
+                {error && <p style={{ fontSize: 12, color: '#ef4444', margin: 0 }}>{error}</p>}
                 <button
-                  onClick={() => { closeModal(); handleConnectWhatsApp(); }}
-                  className="text-sm py-2 px-4 rounded-lg font-medium"
-                  style={{ background: 'var(--channel-whatsapp)', color: '#fff' }}
+                  onClick={connectInstagram}
+                  disabled={loading || (!igNeeds2fa && (!igUser || !igPass)) || (igNeeds2fa && !ig2fa)}
+                  style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: CHANNEL_META.instagram.color, color: '#fff', fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}
                 >
-                  Reintentar
+                  {loading ? 'Conectando...' : igNeeds2fa ? 'Verificar código' : 'Conectar'}
                 </button>
-              </>
+              </div>
+            )}
+
+            {/* Facebook modal */}
+            {modal === 'facebook' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Conectar Facebook</h2>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+                  Pega el App State (JSON de cookies) de tu sesión de Facebook Messenger.
+                </p>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>App State (JSON)</label>
+                  <textarea
+                    value={fbState}
+                    onChange={(e) => setFbState(e.target.value)}
+                    placeholder='[{"key":"c_user","value":"...",...}]'
+                    rows={6}
+                    style={{ ...inp, resize: 'vertical' as const }}
+                  />
+                </div>
+                {error && <p style={{ fontSize: 12, color: '#ef4444', margin: 0 }}>{error}</p>}
+                <button
+                  onClick={connectFacebook}
+                  disabled={loading || !fbState.trim()}
+                  style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: CHANNEL_META.facebook.color, color: '#fff', fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}
+                >
+                  {loading ? 'Conectando...' : 'Conectar'}
+                </button>
+              </div>
+            )}
+
+            {/* TikTok modal */}
+            {modal === 'tiktok' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Conectar TikTok</h2>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+                  Necesitas las cookies de sesión de TikTok y tu nombre de usuario.
+                </p>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Usuario de TikTok</label>
+                  <input value={ttUser} onChange={(e) => setTtUser(e.target.value)} placeholder="@miusuario" style={inp} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Cookies (JSON)</label>
+                  <textarea
+                    value={ttCookies}
+                    onChange={(e) => setTtCookies(e.target.value)}
+                    placeholder='{"sessionid":"...","tt_webid":"..."}'
+                    rows={4}
+                    style={{ ...inp, resize: 'vertical' as const }}
+                  />
+                </div>
+                {error && <p style={{ fontSize: 12, color: '#ef4444', margin: 0 }}>{error}</p>}
+                <button
+                  onClick={connectTikTok}
+                  disabled={loading || !ttUser || !ttCookies.trim()}
+                  style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: '#010101', color: '#fff', fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}
+                >
+                  {loading ? 'Conectando...' : 'Conectar'}
+                </button>
+              </div>
             )}
           </div>
         </div>
       )}
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
