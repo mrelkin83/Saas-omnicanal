@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import { requireAuth } from '../../middleware/require-auth.js';
 import { db, appointments, customers, eq, and, ilike, desc } from '@saas/db';
 
@@ -29,6 +30,26 @@ const appointmentsRoutes: FastifyPluginAsync = async (fastify) => {
       .where(eq(appointments.tenantId, tenantId))
       .orderBy(desc(appointments.scheduledAt))
       .limit(50);
+  });
+
+  const patchSchema = z.object({
+    status: z.enum(['confirmed', 'cancelled', 'completed', 'no_show']).optional(),
+    notes: z.string().optional(),
+  });
+
+  fastify.patch('/:id', { preHandler: [requireAuth()] }, async (request, reply) => {
+    const tenantId = request.user!.tenantId;
+    const { id } = request.params as { id: string };
+    const data = patchSchema.parse(request.body);
+
+    const [apt] = await db
+      .update(appointments)
+      .set({ ...data, updatedAt: new Date() })
+      .where(and(eq(appointments.id, id), eq(appointments.tenantId, tenantId)))
+      .returning();
+
+    if (!apt) return reply.status(404).send({ error: 'Not Found', message: 'Cita no encontrada', code: 'NOT_FOUND' });
+    return apt;
   });
 };
 

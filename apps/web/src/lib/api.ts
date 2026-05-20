@@ -301,6 +301,8 @@ export const api = {
       const qs = params?.phone ? `?phone=${encodeURIComponent(params.phone)}` : '';
       return request<Appointment[]>(`/api/appointments${qs}`, { token });
     },
+    patch: (token: string, id: string, data: Partial<{ status: string; notes: string }>) =>
+      request<Appointment>(`/api/appointments/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
   },
 
   ai: {
