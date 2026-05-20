@@ -320,6 +320,13 @@ export const api = {
   ai: {
     simulate: (token: string, data: { customerPhone: string; message: string; channel?: string }) =>
       request<{ aiResponse: string; customerId: string; action: string | null }>('/api/dev/simulate-message', { method: 'POST', token, body: JSON.stringify(data) }),
+    knowledge: {
+      list: (token: string) => request<KnowledgeEntry[]>('/api/ai/knowledge', { token }),
+      create: (token: string, data: { question: string; answer: string; category?: string; keywords?: string[] }) =>
+        request<KnowledgeEntry>('/api/ai/knowledge', { method: 'POST', token, body: JSON.stringify(data) }),
+      delete: (token: string, id: string) => request<void>(`/api/ai/knowledge/${id}`, { method: 'DELETE', token }),
+    },
+    unanswered: (token: string) => request<UnansweredQuery[]>('/api/ai/unanswered', { token }),
   },
 
   analytics: {
@@ -451,4 +458,15 @@ export interface Integration {
 
 export interface WaGroup {
   id: string; subject: string; size: number; desc?: string | undefined;
+}
+
+export interface KnowledgeEntry {
+  id: string; tenantId: string; question: string; answer: string;
+  category: string | null; keywords: string[]; isActive: boolean | null;
+  createdAt: string; updatedAt: string;
+}
+
+export interface UnansweredQuery {
+  id: string; tenantId: string; question: string; status: string | null;
+  customerId: string | null; conversationId: string | null; createdAt: string;
 }

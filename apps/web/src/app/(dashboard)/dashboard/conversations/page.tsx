@@ -2,13 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
-import { api } from '@/lib/api';
-
-interface Conversation {
-  id: string; customerId: string; channel: string;
-  status: string; unreadCount: number; lastMessageAt: string | null;
-  potentialValue: string; createdAt: string;
-}
+import { api, type ConversationSummary } from '@/lib/api';
 
 const CHANNEL_ICONS: Record<string, string> = {
   whatsapp: '💬', instagram: '📸', facebook: '📘', tiktok: '🎵', web: '🌐',
@@ -23,18 +17,14 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 
 export default function ConversationsPage() {
   const { accessToken } = useAuthStore();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [statusFilter, setStatusFilter] = useState('');
 
   useEffect(() => {
     if (!accessToken) return;
-    void (async () => {
-      const url = statusFilter ? `/api/conversations?status=${statusFilter}` : '/api/conversations';
-      const data = await fetch(`http://localhost:3001${url}`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      }).then((r) => r.json()) as Conversation[];
-      setConversations(Array.isArray(data) ? data : []);
-    })();
+    void api.conversations.list(accessToken, statusFilter ? { status: statusFilter } : undefined)
+      .then(setConversations)
+      .catch(() => null);
   }, [accessToken, statusFilter]);
 
   return (
@@ -68,7 +58,7 @@ export default function ConversationsPage() {
           </div>
         )}
         {conversations.map((conv) => {
-          const s = STATUS_LABELS[conv.status] ?? { label: conv.status, color: 'var(--text-tertiary)' };
+          const s = STATUS_LABELS[conv.status ?? ''] ?? { label: conv.status ?? '', color: 'var(--text-tertiary)' };
           return (
             <div
               key={conv.id}
@@ -77,12 +67,12 @@ export default function ConversationsPage() {
             >
               <span className="text-2xl">{CHANNEL_ICONS[conv.channel] ?? '💬'}</span>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-text-primary truncate">Canal: {conv.channel}</p>
+                <p className="text-sm font-medium text-text-primary truncate">{conv.customerName ?? conv.customerPhone ?? 'Cliente'}</p>
                 <p className="text-xs text-text-tertiary">{conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleString('es-CO') : 'Sin mensajes'}</p>
               </div>
-              {conv.unreadCount > 0 && (
+              {(conv.unreadCount ?? 0) > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-xs text-white" style={{ background: 'var(--accent-primary)' }}>
-                  {conv.unreadCount}
+                  {conv.unreadCount ?? 0}
                 </span>
               )}
               <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: s.color, background: `${s.color}18` }}>

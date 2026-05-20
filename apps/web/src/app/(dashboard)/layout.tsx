@@ -1,9 +1,11 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth';
 import { api } from '@/lib/api';
+import OnboardingWizard from '@/components/OnboardingWizard';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Inicio', icon: '🏠' },
@@ -24,6 +26,7 @@ const NAV_ITEMS = [
   { href: '/dashboard/contacts', label: 'Contactos', icon: '📋' },
   { href: '/dashboard/groups', label: 'Grupos WA', icon: '💬' },
   { href: '/dashboard/ai-config', label: 'Probar IA', icon: '🤖' },
+  { href: '/dashboard/ai-training', label: 'Entrenar IA', icon: '🧠' },
   { href: '/dashboard/settings/integrations', label: 'Integraciones', icon: '🔌' },
   { href: '/dashboard/settings', label: 'Configuración', icon: '⚙️' },
 ];
@@ -31,6 +34,15 @@ const NAV_ITEMS = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, refreshToken, accessToken, clearAuth } = useAuthStore();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    // Only show for owners and only once per tenant
+    if (user.role !== 'owner') return;
+    const done = localStorage.getItem(`onboarding_done_${user.tenantId}`);
+    if (!done) setShowOnboarding(true);
+  }, [user]);
 
   const handleLogout = async () => {
     if (refreshToken && accessToken) {
@@ -94,6 +106,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main className="flex-1 overflow-auto" style={{ background: 'var(--bg-root)' }}>
         {children}
       </main>
+
+      {showOnboarding && <OnboardingWizard onComplete={() => setShowOnboarding(false)} />}
     </div>
   );
 }
