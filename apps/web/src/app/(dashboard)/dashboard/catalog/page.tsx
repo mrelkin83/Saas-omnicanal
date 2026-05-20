@@ -131,9 +131,11 @@ export default function CatalogPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState('');
-  const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null);
+  const [modalMode, setModalMode] = useState<'create' | 'edit' | 'categories' | null>(null);
   const [editTarget, setEditTarget] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [catSaving, setCatSaving] = useState(false);
   const isAdmin = user?.role === 'owner' || user?.role === 'admin';
 
   const load = useCallback(async () => {
@@ -175,6 +177,21 @@ export default function CatalogPage() {
     await load();
   };
 
+  const handleCatCreate = async () => {
+    if (!accessToken || !newCatName.trim()) return;
+    setCatSaving(true);
+    await api.categories.create(accessToken, { name: newCatName.trim() });
+    setNewCatName('');
+    await load();
+    setCatSaving(false);
+  };
+
+  const handleCatDelete = async (id: string) => {
+    if (!accessToken) return;
+    await api.categories.delete(accessToken, id);
+    await load();
+  };
+
   const formatPrice = (price: string | null) =>
     price ? `$${Number(price).toLocaleString('es-CO')}` : '—';
 
@@ -186,13 +203,22 @@ export default function CatalogPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-text-primary">Catálogo</h1>
         {isAdmin && (
-          <button
-            onClick={() => setModalMode('create')}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-            style={{ background: 'var(--accent-primary)' }}
-          >
-            + Nuevo producto
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setModalMode('categories')}
+              className="px-4 py-2 rounded-lg text-sm font-medium border"
+              style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
+            >
+              Categorías ({categories.length})
+            </button>
+            <button
+              onClick={() => setModalMode('create')}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+              style={{ background: 'var(--accent-primary)' }}
+            >
+              + Nuevo producto
+            </button>
+          </div>
         )}
       </div>
 
@@ -274,6 +300,40 @@ export default function CatalogPage() {
             onCancel={() => { setModalMode(null); setEditTarget(null); }}
             isLoading={isLoading}
           />
+        </Modal>
+      )}
+
+      {modalMode === 'categories' && (
+        <Modal title="Gestionar categorías" onClose={() => setModalMode(null)}>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <input
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void handleCatCreate(); }}
+                placeholder="Nueva categoría..."
+                className="flex-1 px-3 py-2 rounded-lg text-sm outline-none"
+                style={{ background: 'var(--bg-surface-2)', border: '1px solid var(--border-default)', color: 'var(--text-primary)' }}
+              />
+              <button
+                onClick={() => void handleCatCreate()}
+                disabled={catSaving || !newCatName.trim()}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
+                style={{ background: 'var(--accent-primary)' }}
+              >
+                Crear
+              </button>
+            </div>
+            <div className="space-y-1 max-h-72 overflow-y-auto">
+              {categories.length === 0 && <p className="text-sm text-center py-4" style={{ color: 'var(--text-tertiary)' }}>Sin categorías</p>}
+              {categories.map((cat) => (
+                <div key={cat.id} className="flex items-center justify-between px-3 py-2 rounded-lg" style={{ background: 'var(--bg-surface-2)' }}>
+                  <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{cat.name}</span>
+                  <button onClick={() => void handleCatDelete(cat.id)} className="text-xs hover:text-red-400" style={{ color: 'var(--accent-danger)' }}>Eliminar</button>
+                </div>
+              ))}
+            </div>
+          </div>
         </Modal>
       )}
     </div>

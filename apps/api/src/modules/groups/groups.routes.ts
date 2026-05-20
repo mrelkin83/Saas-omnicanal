@@ -51,6 +51,20 @@ const groupsRoutes: FastifyPluginAsync = async (fastify) => {
     }
   });
 
+  fastify.post('/:groupId/message', { preHandler: [requireAuth('admin')] }, async (request, reply) => {
+    const tenantId = request.user!.tenantId;
+    const { groupId } = request.params as { groupId: string };
+    const { text } = z.object({ text: z.string().min(1) }).parse(request.body);
+    const instanceName = await getWaSession(tenantId);
+    if (!instanceName) return reply.status(503).send({ error: 'Service Unavailable', message: 'WhatsApp no está conectado', code: 'WA_NOT_CONNECTED' });
+    try {
+      await evo.sendText(instanceName, groupId, text);
+      return { ok: true };
+    } catch {
+      return reply.status(503).send({ error: 'Service Unavailable', message: 'Error enviando mensaje', code: 'EVO_ERROR' });
+    }
+  });
+
   fastify.post('/:groupId/participants', { preHandler: [requireAuth('admin')] }, async (request, reply) => {
     const tenantId = request.user!.tenantId;
     const { groupId } = request.params as { groupId: string };

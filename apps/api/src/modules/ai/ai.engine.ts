@@ -1,5 +1,5 @@
 import type { Tenant } from '@saas/db';
-import { db, conversationState, eq, and } from '@saas/db';
+import { db, conversationState } from '@saas/db';
 import { getHistory, appendHistory } from './conversation-state.service.js';
 import { buildDynamicContext } from './ai.context-builder.js';
 import { searchKnowledge, logUnanswered } from './knowledge-base.service.js';

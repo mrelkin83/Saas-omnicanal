@@ -12,6 +12,9 @@ const createCampaignSchema = z.object({
   messages: z.array(messageSchema).min(1).max(5),
   scheduledAt: z.string().datetime().optional(),
   channelSessionId: z.string().uuid().optional(),
+  mediaUrl: z.string().url().optional(),
+  mediaType: z.enum(['image', 'video', 'document']).optional(),
+  recurrence: z.enum(['once', 'daily', 'weekly', 'monthly']).default('once'),
 });
 
 const patchCampaignSchema = z.object({
@@ -51,7 +54,9 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
 
     const values: {
       tenantId: string; name: string; listId: string; messages: { text: string }[];
-      totalContacts: number; status: string; scheduledAt?: Date; channelSessionId?: string;
+      totalContacts: number; status: string; recurrence: string;
+      scheduledAt?: Date; channelSessionId?: string;
+      mediaUrl?: string; mediaType?: string;
     } = {
       tenantId,
       name: data.name,
@@ -59,22 +64,34 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
       messages: data.messages,
       totalContacts: list.contactCount ?? 0,
       status: data.scheduledAt ? 'scheduled' : 'draft',
+      recurrence: data.recurrence,
     };
 
     if (data.scheduledAt) values.scheduledAt = new Date(data.scheduledAt);
     if (data.channelSessionId) values.channelSessionId = data.channelSessionId;
+    if (data.mediaUrl) { values.mediaUrl = data.mediaUrl; values.mediaType = data.mediaType ?? 'image'; }
 
     const [campaign] = await db.insert(campaigns).values(values).returning();
     if (!campaign) return reply.status(500).send({ error: 'Internal Server Error', message: 'Error creando campaña', code: 'CREATE_ERROR' });
 
     if (data.scheduledAt) {
       const delay = new Date(data.scheduledAt).getTime() - Date.now();
-      if (delay > 0) {
-        await scheduleCampaign(campaign.id, tenantId, delay);
-      }
+      if (delay > 0) await scheduleCampaign(campaign.id, tenantId, delay);
     }
 
     return reply.status(201).send(campaign);
+  });
+
+  fastify.post('/:id/launch', { preHandler: [requireAuth('admin')] }, async (request, reply) => {
+    const tenantId = request.user!.tenantId;
+    const { id } = request.params as { id: string };
+    const [campaign] = await db.select({ id: campaigns.id, status: campaigns.status }).from(campaigns).where(and(eq(campaigns.id, id), eq(campaigns.tenantId, tenantId)));
+    if (!campaign) return reply.status(404).send({ error: 'Not Found', message: 'Campaña no encontrada', code: 'NOT_FOUND' });
+    if (campaign.status === 'running' || campaign.status === 'done') {
+      return reply.status(409).send({ error: 'Conflict', message: 'La campaña ya está en curso o terminada', code: 'INVALID_STATUS' });
+    }
+    await scheduleCampaign(id, tenantId, 0);
+    return { ok: true };
   });
 
   fastify.patch('/:id', { preHandler: [requireAuth('admin')] }, async (request, reply) => {

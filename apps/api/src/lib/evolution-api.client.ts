@@ -70,6 +70,25 @@ export async function sendText(instanceName: string, number: string, text: strin
   return evoRequest<EvoSendTextResult>('POST', `/message/sendText/${instanceName}`, { number, text });
 }
 
+export async function sendMedia(
+  instanceName: string,
+  number: string,
+  mediaUrl: string,
+  mediaType: 'image' | 'video' | 'document',
+  caption?: string,
+  fileName?: string,
+): Promise<EvoSendTextResult> {
+  const mimeMap: Record<string, string> = { image: 'image/jpeg', video: 'video/mp4', document: 'application/pdf' };
+  return evoRequest<EvoSendTextResult>('POST', `/message/sendMedia/${instanceName}`, {
+    number,
+    mediatype: mediaType,
+    mimetype: mimeMap[mediaType] ?? 'application/octet-stream',
+    caption: caption ?? '',
+    media: mediaUrl,
+    fileName: fileName ?? (mediaType === 'image' ? 'imagen.jpg' : mediaType === 'video' ? 'video.mp4' : 'documento.pdf'),
+  });
+}
+
 export async function logoutInstance(instanceName: string): Promise<void> {
   await evoRequest<void>('DELETE', `/instance/logout/${instanceName}`);
 }

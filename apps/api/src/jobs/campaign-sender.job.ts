@@ -4,7 +4,6 @@ import { makeBullMQConnection } from '../lib/redis.js';
 import * as evo from '../lib/evolution-api.client.js';
 
 const QUEUE_NAME = 'campaign-sender';
-const RATE_LIMIT = 30; // messages per minute
 
 let queue: Queue | null = null;
 let worker: Worker | null = null;
@@ -18,13 +17,25 @@ function resolveVariables(template: string, vars: Record<string, string>, name?:
   return result;
 }
 
+function randomDelayMs(): number {
+  return 2000 + Math.floor(Math.random() * 6001); // 2–8 seconds anti-ban
+}
+
+function getNextRunDate(recurrence: string | null, from: Date): Date | null {
+  if (!recurrence || recurrence === 'once') return null;
+  const d = new Date(from);
+  if (recurrence === 'daily') d.setDate(d.getDate() + 1);
+  else if (recurrence === 'weekly') d.setDate(d.getDate() + 7);
+  else if (recurrence === 'monthly') d.setMonth(d.getMonth() + 1);
+  return d;
+}
+
 async function runCampaign(campaignId: string, tenantId: string): Promise<void> {
   const [campaign] = await db.select().from(campaigns).where(and(eq(campaigns.id, campaignId), eq(campaigns.tenantId, tenantId)));
   if (!campaign || campaign.status === 'cancelled' || campaign.status === 'done') return;
 
   await db.update(campaigns).set({ status: 'running', updatedAt: new Date() }).where(eq(campaigns.id, campaignId));
 
-  // Get WhatsApp session for this tenant
   const [session] = campaign.channelSessionId
     ? await db.select().from(channelSessions).where(eq(channelSessions.id, campaign.channelSessionId))
     : await db.select().from(channelSessions).where(and(eq(channelSessions.tenantId, tenantId), eq(channelSessions.channel, 'whatsapp'), eq(channelSessions.status, 'connected')));
@@ -40,16 +51,13 @@ async function runCampaign(campaignId: string, tenantId: string): Promise<void> 
 
   let sent = 0;
   let failed = 0;
-  const intervalMs = Math.ceil(60_000 / RATE_LIMIT); // ms between sends
 
   for (let i = 0; i < contacts.length; i++) {
     const contact = contacts[i]!;
 
-    // Check if cancelled mid-run
     const [current] = await db.select({ status: campaigns.status }).from(campaigns).where(eq(campaigns.id, campaignId));
     if (current?.status === 'cancelled' || current?.status === 'paused') break;
 
-    // Rotate through messages
     const msgIndex = i % messages.length;
     const template = messages[msgIndex]!.text;
     const vars = (contact.variables ?? {}) as Record<string, string>;
@@ -66,7 +74,12 @@ async function runCampaign(campaignId: string, tenantId: string): Promise<void> 
     }).returning({ id: campaignLogs.id });
 
     try {
-      await evo.sendText(instanceName, jid, text);
+      if (campaign.mediaUrl) {
+        const mediaType = (campaign.mediaType ?? 'image') as 'image' | 'video' | 'document';
+        await evo.sendMedia(instanceName, jid, campaign.mediaUrl, mediaType, text);
+      } else {
+        await evo.sendText(instanceName, jid, text);
+      }
       await db.update(campaignLogs).set({ status: 'sent', sentAt: new Date() }).where(eq(campaignLogs.id, logRow!.id));
       sent++;
     } catch {
@@ -74,18 +87,38 @@ async function runCampaign(campaignId: string, tenantId: string): Promise<void> 
       failed++;
     }
 
-    // Rate limit — wait between sends (skip wait after last contact)
     if (i < contacts.length - 1) {
-      await new Promise((r) => setTimeout(r, intervalMs));
+      await new Promise((r) => setTimeout(r, randomDelayMs()));
     }
   }
 
-  await db.update(campaigns).set({
-    status: 'done',
-    sentCount: sent,
-    failedCount: failed,
-    updatedAt: new Date(),
-  }).where(eq(campaigns.id, campaignId));
+  const nextRun = getNextRunDate(campaign.recurrence, new Date());
+  if (nextRun) {
+    await db.update(campaigns).set({
+      status: 'scheduled',
+      scheduledAt: nextRun,
+      nextRunAt: nextRun,
+      sentCount: 0,
+      failedCount: 0,
+      updatedAt: new Date(),
+    }).where(eq(campaigns.id, campaignId));
+    const delay = nextRun.getTime() - Date.now();
+    if (queue && delay > 0) {
+      await queue.add('send', { campaignId, tenantId }, {
+        delay,
+        removeOnComplete: 20,
+        removeOnFail: 10,
+        jobId: `campaign-${campaignId}-${nextRun.getTime()}`,
+      });
+    }
+  } else {
+    await db.update(campaigns).set({
+      status: 'done',
+      sentCount: sent,
+      failedCount: failed,
+      updatedAt: new Date(),
+    }).where(eq(campaigns.id, campaignId));
+  }
 }
 
 export async function scheduleCampaign(campaignId: string, tenantId: string, delayMs: number): Promise<void> {

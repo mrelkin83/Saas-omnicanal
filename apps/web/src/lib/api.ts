@@ -263,11 +263,15 @@ export const api = {
   campaigns: {
     list: (token: string) => request<Campaign[]>('/api/campaigns', { token }),
     get: (token: string, id: string) => request<Campaign>(`/api/campaigns/${id}`, { token }),
-    create: (token: string, data: { name: string; listId: string; messages: { text: string }[]; scheduledAt?: string }) =>
-      request<Campaign>('/api/campaigns', { method: 'POST', token, body: JSON.stringify(data) }),
+    create: (token: string, data: {
+      name: string; listId: string; messages: { text: string }[];
+      scheduledAt?: string; mediaUrl?: string; mediaType?: string; recurrence?: string;
+    }) => request<Campaign>('/api/campaigns', { method: 'POST', token, body: JSON.stringify(data) }),
     patch: (token: string, id: string, data: Partial<{ status: string; scheduledAt: string }>) =>
       request<Campaign>(`/api/campaigns/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
     delete: (token: string, id: string) => request<void>(`/api/campaigns/${id}`, { method: 'DELETE', token }),
+    launch: (token: string, id: string) => request<{ ok: boolean }>(`/api/campaigns/${id}/launch`, { method: 'POST', token }),
+    logs: (token: string, id: string) => request<CampaignLog[]>(`/api/campaigns/${id}/logs`, { token }),
   },
 
   contactLists: {
@@ -284,6 +288,8 @@ export const api = {
       request<{ groupJid: string }>('/api/groups', { method: 'POST', token, body: JSON.stringify(data) }),
     addParticipants: (token: string, groupId: string, participants: string[]) =>
       request<unknown>(`/api/groups/${groupId}/participants`, { method: 'POST', token, body: JSON.stringify({ participants }) }),
+    sendMessage: (token: string, groupId: string, text: string) =>
+      request<{ ok: boolean }>(`/api/groups/${groupId}/message`, { method: 'POST', token, body: JSON.stringify({ text }) }),
   },
 
   integrations: {
@@ -412,7 +418,14 @@ export interface Campaign {
   id: string; name: string; status: string | null;
   scheduledAt: string | null; totalContacts: number | null;
   sentCount: number | null; failedCount: number | null;
-  createdAt: string;
+  mediaUrl: string | null; mediaType: string | null;
+  recurrence: string | null; createdAt: string;
+}
+
+export interface CampaignLog {
+  id: string; campaignId: string; contactPhone: string; contactName: string | null;
+  messageIndex: number | null; status: string | null; errorMessage: string | null;
+  sentAt: string | null;
 }
 
 export interface ContactList {
