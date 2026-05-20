@@ -17,6 +17,7 @@ const ordersRoutes: FastifyPluginAsync = async (fastify) => {
 
     const conditions = [eq(orders.tenantId, tenantId)];
     if (q['status']) conditions.push(eq(orders.status, q['status']));
+    if (q['customerId']) conditions.push(eq(orders.customerId, q['customerId']));
 
     const rows = await db
       .select({

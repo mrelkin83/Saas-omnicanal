@@ -6,7 +6,16 @@ import { db, appointments, customers, eq, and, ilike, desc } from '@saas/db';
 const appointmentsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/', { preHandler: [requireAuth()] }, async (request) => {
     const tenantId = request.user!.tenantId;
-    const { phone } = request.query as { phone?: string };
+    const { phone, customerId } = request.query as { phone?: string; customerId?: string };
+
+    if (customerId) {
+      return db
+        .select()
+        .from(appointments)
+        .where(and(eq(appointments.tenantId, tenantId), eq(appointments.customerId, customerId)))
+        .orderBy(desc(appointments.scheduledAt))
+        .limit(20);
+    }
 
     if (phone) {
       const [customer] = await db

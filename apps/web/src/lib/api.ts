@@ -187,9 +187,12 @@ export const api = {
   },
 
   orders: {
-    list: (token: string, params?: { status?: string }) => {
-      const qs = params?.status ? `?status=${params.status}` : '';
-      return request<Order[]>(`/api/orders${qs}`, { token });
+    list: (token: string, params?: { status?: string; customerId?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.status) qs.set('status', params.status);
+      if (params?.customerId) qs.set('customerId', params.customerId);
+      const q = qs.toString();
+      return request<Order[]>(`/api/orders${q ? `?${q}` : ''}`, { token });
     },
     get: (token: string, id: string) => request<Order & { items: unknown[]; payments: unknown[]; deliveries: unknown[] }>(`/api/orders/${id}`, { token }),
     patch: (token: string, id: string, data: Partial<{ status: string; paymentStatus: string; notes: string }>) =>
@@ -303,9 +306,12 @@ export const api = {
   },
 
   appointments: {
-    list: (token: string, params?: { phone?: string }) => {
-      const qs = params?.phone ? `?phone=${encodeURIComponent(params.phone)}` : '';
-      return request<Appointment[]>(`/api/appointments${qs}`, { token });
+    list: (token: string, params?: { phone?: string; customerId?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.phone) qs.set('phone', params.phone);
+      if (params?.customerId) qs.set('customerId', params.customerId);
+      const q = qs.toString();
+      return request<Appointment[]>(`/api/appointments${q ? `?${q}` : ''}`, { token });
     },
     patch: (token: string, id: string, data: Partial<{ status: string; notes: string }>) =>
       request<Appointment>(`/api/appointments/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
