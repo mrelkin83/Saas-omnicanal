@@ -95,10 +95,10 @@ collect_config() {
     fi
   fi
 
-  # Credenciales del superadmin — valores por defecto fijos
+  # Credenciales del superadmin — genera password aleatorio
   SA_EMAIL="admin@demo.com"
   SA_NAME="Administrador"
-  SA_PASSWORD="admin123"
+  SA_PASSWORD=$(openssl rand -base64 12 | tr -dc 'a-zA-Z0-9' | head -c 16)
 
   info "Generando claves seguras..."
   POSTGRES_PASSWORD=$(gen_hex32)

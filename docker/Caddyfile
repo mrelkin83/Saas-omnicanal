@@ -12,8 +12,15 @@
     reverse_proxy api:3001
   }
 
-  # WebSocket / SSE support
-  handle /api/channels/inbox/stream* {
+  # SSE — inbox tiempo real
+  handle /api/conversations/stream* {
+    reverse_proxy api:3001 {
+      flush_interval -1
+    }
+  }
+
+  # SSE — WhatsApp QR streaming
+  handle /api/channels/whatsapp/stream* {
     reverse_proxy api:3001 {
       flush_interval -1
     }
