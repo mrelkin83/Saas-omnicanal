@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { BUSINESS_TYPES as BT } from '@saas/shared';
 
 interface Tenant {
   id: string; name: string; slug: string; businessType: string;
@@ -12,11 +13,7 @@ interface Tenant {
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 function saToken() { return localStorage.getItem('sa_token') ?? ''; }
 
-const BUSINESS_TYPES = [
-  'restaurante_comida_rapida', 'salon_belleza_barberia', 'tienda_ropa',
-  'abogado_juridico', 'medico_consultorio', 'agencia_inmobiliaria',
-  'ferreteria', 'papeleria', 'gym_fitness', 'hotel_hostal', 'otro',
-];
+const BUSINESS_TYPES = Object.entries(BT).map(([value, cfg]) => ({ value, label: `${cfg.icon} ${cfg.label}` }));
 
 export default function SuperAdminTenantsPage() {
   const router = useRouter();
@@ -29,7 +26,7 @@ export default function SuperAdminTenantsPage() {
   const [createError, setCreateError] = useState('');
   const [form, setForm] = useState({
     tenantName: '', businessType: 'restaurante_comida_rapida',
-    ownerName: '', ownerEmail: '', ownerPassword: '', plan: 'basic',
+    ownerName: '', ownerEmail: '', ownerPassword: '', plan: 'free',
   });
 
   const load = useCallback(async () => {
@@ -90,7 +87,7 @@ export default function SuperAdminTenantsPage() {
         throw new Error(err.message ?? 'Error creando tenant');
       }
       setShowCreate(false);
-      setForm({ tenantName: '', businessType: 'restaurante_comida_rapida', ownerName: '', ownerEmail: '', ownerPassword: '', plan: 'basic' });
+      setForm({ tenantName: '', businessType: 'restaurante_comida_rapida', ownerName: '', ownerEmail: '', ownerPassword: '', plan: 'free' });
       void load();
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Error desconocido');
@@ -131,7 +128,7 @@ export default function SuperAdminTenantsPage() {
               <div>
                 <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Tipo de negocio</label>
                 <select value={form.businessType} onChange={(e) => setForm((f) => ({ ...f, businessType: e.target.value }))} style={inp}>
-                  {BUSINESS_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                  {BUSINESS_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
               <div>
@@ -149,7 +146,7 @@ export default function SuperAdminTenantsPage() {
               <div>
                 <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Plan</label>
                 <select value={form.plan} onChange={(e) => setForm((f) => ({ ...f, plan: e.target.value }))} style={inp}>
-                  {['basic', 'pro', 'enterprise'].map((p) => <option key={p} value={p}>{p}</option>)}
+                  {['free', 'starter', 'pro'].map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
               {createError && <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{createError}</p>}

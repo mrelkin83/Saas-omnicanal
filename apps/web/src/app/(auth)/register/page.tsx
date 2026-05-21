@@ -8,17 +8,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
+import { BUSINESS_TYPES as BT } from '@saas/shared';
 
-const BUSINESS_TYPES = [
-  { value: 'beauty_salon', label: 'Salón de Belleza / Spa' },
-  { value: 'restaurant', label: 'Restaurante / Comida' },
-  { value: 'clinic', label: 'Clínica / Salud' },
-  { value: 'retail', label: 'Tienda / Retail' },
-  { value: 'automotive', label: 'Taller / Automotriz' },
-  { value: 'legal', label: 'Despacho Legal' },
-  { value: 'hotel', label: 'Hotel / Hospedaje' },
-  { value: 'other', label: 'Otro' },
-];
+const BUSINESS_TYPES = Object.entries(BT).map(([value, cfg]) => ({ value, label: `${cfg.icon} ${cfg.label}` }));
 
 const schema = z.object({
   ownerName: z.string().min(2, 'Nombre requerido'),
@@ -30,7 +22,7 @@ const schema = z.object({
     .regex(/[0-9]/, 'Debe incluir número'),
   tenantName: z.string().min(2, 'Nombre de empresa requerido'),
   businessType: z.string().min(1, 'Selecciona un tipo'),
-  plan: z.literal('trial'),
+  plan: z.enum(['free', 'starter', 'pro']).default('free'),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -46,7 +38,7 @@ export default function RegisterPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { plan: 'trial' },
+    defaultValues: { plan: 'free' },
   });
 
   const onSubmit = async (data: FormData) => {

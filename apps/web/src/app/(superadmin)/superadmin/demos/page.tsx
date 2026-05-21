@@ -2,6 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { BUSINESS_TYPES as BT } from '@saas/shared';
+
+const BUSINESS_TYPE_OPTIONS = Object.entries(BT).map(([value, cfg]) => ({ value, label: `${cfg.icon} ${cfg.label}` }));
 
 interface DemoTenant {
   id: string; name: string; slug: string; businessType: string;
@@ -15,7 +18,7 @@ export default function SuperAdminDemosPage() {
   const router = useRouter();
   const [demos, setDemos] = useState<DemoTenant[]>([]);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ tenantName: '', ownerEmail: '', ownerPassword: 'Demo123!', ownerName: '', businessType: 'retail', durationDays: '14' });
+  const [form, setForm] = useState({ tenantName: '', ownerEmail: '', ownerPassword: 'Demo123!', ownerName: '', businessType: 'restaurante_comida_rapida', durationDays: '14' });
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ tenantId: string; demoExpiresAt: string } | null>(null);
 
@@ -80,7 +83,6 @@ export default function SuperAdminDemosPage() {
               { key: 'ownerEmail', label: 'Email del owner', placeholder: 'owner@empresa.com' },
               { key: 'ownerName', label: 'Nombre del owner', placeholder: 'Juan Pérez' },
               { key: 'ownerPassword', label: 'Contraseña inicial', placeholder: 'Demo123!' },
-              { key: 'businessType', label: 'Tipo de negocio', placeholder: 'retail' },
               { key: 'durationDays', label: 'Duración (días)', placeholder: '14' },
             ].map((f) => (
               <div key={f.key}>
@@ -90,6 +92,13 @@ export default function SuperAdminDemosPage() {
                   style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#f1f5f9', fontSize: 14, boxSizing: 'border-box' as const }} />
               </div>
             ))}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#64748b', marginBottom: 4 }}>TIPO DE NEGOCIO</div>
+              <select value={form.businessType} onChange={(e) => setForm((prev) => ({ ...prev, businessType: e.target.value }))}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#f1f5f9', fontSize: 14, boxSizing: 'border-box' as const }}>
+                {BUSINESS_TYPE_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             <button onClick={() => void createDemo()} disabled={saving}
