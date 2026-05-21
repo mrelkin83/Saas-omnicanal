@@ -37,7 +37,7 @@ import aiRoutes from './modules/ai/ai.routes.js';
 import devRoutes from './modules/dev/dev.routes.js';
 import channelsRoutes from './modules/channels/channels.routes.js';
 import webhooksRoutes from './modules/webhooks/webhooks.routes.js';
-import { registerDriver } from './modules/channels/core/channel-manager.js';
+import { registerDriver, initChannelSendQueue, stopChannelSendQueue } from './modules/channels/core/channel-manager.js';
 import { whatsappDriver } from './modules/channels/drivers/whatsapp/whatsapp.driver.js';
 import { instagramDriver } from './modules/channels/drivers/instagram/instagram.driver.js';
 import { facebookDriver } from './modules/channels/drivers/facebook/facebook.driver.js';
@@ -143,6 +143,7 @@ const start = async (): Promise<void> => {
     app.log.info('Running database migrations...');
     await runMigrations();
     await app.listen({ port: PORT, host: HOST });
+    initChannelSendQueue();
     startInstagramPoller();
     startTikTokScraper();
     startCampaignSender();
@@ -155,6 +156,7 @@ const start = async (): Promise<void> => {
 };
 
 const stop = async (): Promise<void> => {
+  await stopChannelSendQueue();
   await stopInstagramPoller();
   await stopTikTokScraper();
   await stopCampaignSender();
