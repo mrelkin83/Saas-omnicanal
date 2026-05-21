@@ -46,6 +46,7 @@ import { handleIncomingMessage } from './modules/channels/core/incoming-handler.
 import { startInstagramPoller, stopInstagramPoller } from './jobs/instagram-poller.job.js';
 import { startTikTokScraper, stopTikTokScraper } from './jobs/tiktok-scraper.job.js';
 import { startDemoExpiryJob, stopDemoExpiryJob } from './jobs/demo-expiry.job.js';
+import { startReminderJob, stopReminderJob } from './jobs/reminder.job.js';
 import superadminAuthRoutes from './modules/superadmin/auth.routes.js';
 import superadminTenantsRoutes from './modules/superadmin/tenants.routes.js';
 import superadminPlansRoutes from './modules/superadmin/plans.routes.js';
@@ -146,6 +147,7 @@ const start = async (): Promise<void> => {
     startTikTokScraper();
     startCampaignSender();
     startDemoExpiryJob();
+    startReminderJob();
   } catch (err) {
     app.log.error(err);
     process.exit(1);
@@ -157,6 +159,7 @@ const stop = async (): Promise<void> => {
   await stopTikTokScraper();
   await stopCampaignSender();
   await stopDemoExpiryJob();
+  await stopReminderJob();
   await app.close();
 };
 
