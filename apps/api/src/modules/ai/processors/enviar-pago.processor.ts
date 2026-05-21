@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { db, payments, customers, eq, and } from '@saas/db';
+import { db, payments, orders, customers, eq, and, desc } from '@saas/db';
 import { createPaymentLink } from '../../../lib/wompi-client.js';
 import { getTenantWompiCredentials, WompiNotConfiguredError } from '../../../lib/wompi-tenant.js';
 
@@ -47,9 +47,19 @@ export async function enviarPagoProcessor(
     return 'Hubo un problema generando el link de pago. Por favor intenta de nuevo o contáctanos directamente.';
   }
 
+  // Link to the customer's most recent pending order so the Wompi webhook
+  // can update the order status when payment is confirmed.
+  const [pendingOrder] = await db
+    .select({ id: orders.id })
+    .from(orders)
+    .where(and(eq(orders.tenantId, tenantId), eq(orders.customerId, customerId), eq(orders.paymentStatus, 'pending')))
+    .orderBy(desc(orders.createdAt))
+    .limit(1);
+
   await db.insert(payments).values({
     tenantId,
     customerId,
+    orderId: pendingOrder?.id ?? null,
     provider: 'wompi',
     externalId: link.id,
     amount: String(monto),
