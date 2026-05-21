@@ -72,8 +72,8 @@ saas-omnichannel/
 │   │       │              #   payments, ai, superadmin
 │   │       ├── plugins/   # auth, cors, rate-limit, swagger, tenant
 │   │       ├── middleware/ # requireAuth, requireSuperAdmin
-│   │       ├── jobs/      # campaign-sender, demo-expiry, instagram-poller,
-│   │       │              #   tiktok-scraper
+│   │       ├── jobs/      # campaign-sender, reminder, demo-expiry,
+│   │       │              #   instagram-poller, tiktok-scraper
 │   │       ├── channels/  # channel-manager, whatsapp, instagram, facebook, tiktok drivers
 │   │       └── lib/       # llm-client, ai.action-parser, scheduling.engine,
 │   │                      #   evolution-api.client, wompi-client, crypto
@@ -292,6 +292,13 @@ Ver [`DEPLOY.md`](DEPLOY.md) para la guía completa con cada comando explicado.
 
 ---
 
+## Documentación técnica
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Referencia técnica completa: multi-tenancy, motor de canales, motor de IA, base de datos, jobs, SSE, pagos, módulos API, variables de entorno.
+- [`DEPLOY.md`](DEPLOY.md) — Guía de despliegue en VPS paso a paso.
+
+---
+
 ## Panel SuperAdmin
 
 Acceso independiente en `/superadmin` (credenciales separadas de los tenants):
@@ -334,7 +341,7 @@ Mensaje entrante
  Respuesta al cliente
 ```
 
-**Acciones disponibles:** `VER_CATALOGO`, `CREAR_CITA`, `VER_SLOTS`, `COTIZAR`, `VER_COTIZACION`, `CREAR_RESERVA`, `VER_RESERVA`, `CANCELAR_RESERVA`, `AGREGAR_AL_CARRITO`, `VER_CARRITO`, `CREAR_PEDIDO`, `ENVIAR_PAGO`, `INFO_NEGOCIO`, `ESCALAMIENTO`
+**Acciones disponibles:** `VER_CATALOGO`, `CREAR_CITA`, `VER_SLOTS`, `COTIZAR`, `CREAR_RESERVA`, `AGREGAR_CARRITO`, `VER_CARRITO`, `CREAR_PEDIDO`, `ENVIAR_PAGO`, `INFO_NEGOCIO`, `ESCALAMIENTO`
 
 ---
 
@@ -356,6 +363,19 @@ Mensaje entrante
 | 11 | Producción: Docker multi-stage + CI + Tests + Backups | `fase-11-completa` |
 
 Ver [`PROGRESO.md`](PROGRESO.md) para el detalle completo de cada fase.
+
+---
+
+## Jobs en background
+
+| Job | Frecuencia | Función |
+|-----|-----------|---------|
+| `campaign-sender` | On-demand (BullMQ) | Envío masivo con rate limit 30 msg/min y delay anti-ban 2–8s |
+| `reminder` | Cada hora | Recordatorios WhatsApp 24h antes de citas confirmadas |
+| `demo-expiry` | Cada hora | Suspende tenants demo cuya fecha de expiración ya pasó |
+| `instagram-poller` | Cada 20s | Poll de DMs de Instagram via bridge Python |
+| `tiktok-scraper` | Cada 60s | Scraping de comentarios/DMs de TikTok |
+| `channel-send` (BullMQ) | On-demand | Cola de mensajes diferidos cuando WhatsApp supera 30 msg/min |
 
 ---
 
