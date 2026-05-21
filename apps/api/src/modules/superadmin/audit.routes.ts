@@ -21,11 +21,11 @@ const superadminAuditRoutes: FastifyPluginAsync = async (fastify) => {
       })
       .from(saasAuditLogs)
       .leftJoin(superadminUsers, eq(saasAuditLogs.adminId, superadminUsers.id))
+      .where(action ? eq(saasAuditLogs.action, action) : undefined)
       .orderBy(desc(saasAuditLogs.createdAt))
       .limit(parseInt(limit, 10))
       .offset(parseInt(offset, 10));
 
-    if (action) return rows.filter((r) => r.action === action);
     return rows;
   });
 };

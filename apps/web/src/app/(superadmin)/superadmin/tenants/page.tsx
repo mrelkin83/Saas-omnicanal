@@ -59,8 +59,9 @@ export default function SuperAdminTenantsPage() {
     const res = await fetch(`${API}/api/superadmin/tenants/${id}/impersonate`, { method: 'POST', headers: { Authorization: `Bearer ${saToken()}` } });
     if (res.ok) {
       const { accessToken, refreshToken } = await res.json() as { accessToken: string; refreshToken: string };
-      localStorage.setItem('access_token', accessToken);
-      localStorage.setItem('refresh_token', refreshToken);
+      const payload = JSON.parse(atob(accessToken.split('.')[1]!)) as { sub: string; tenantId: string; role: 'owner' | 'admin' | 'agent'; email: string };
+      localStorage.setItem('auth', JSON.stringify({ state: { accessToken, refreshToken, user: payload }, version: 0 }));
+      document.cookie = 'has_session=1; path=/; max-age=604800; SameSite=Lax';
       window.open('/dashboard', '_blank');
     }
     setImpersonating(null);

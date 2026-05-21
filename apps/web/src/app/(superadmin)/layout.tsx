@@ -22,6 +22,8 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
     router.push('/superadmin/login');
   };
 
+  if (pathname === '/superadmin/login') return <>{children}</>;
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: 'inherit' }}>
       <aside style={{

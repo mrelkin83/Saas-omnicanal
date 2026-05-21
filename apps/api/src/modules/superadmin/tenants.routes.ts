@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { requireSuperAdmin } from '../../middleware/require-superadmin.js';
-import { db, tenants, users, eq, desc } from '@saas/db';
+import { db, tenants, users, eq, and, desc } from '@saas/db';
 import { logAudit } from './audit-helper.js';
 
 const patchSchema = z.object({
@@ -96,7 +96,7 @@ const superadminTenantsRoutes: FastifyPluginAsync = async (fastify) => {
     const adminId = request.user!.sub;
 
     const [owner] = await db.select().from(users)
-      .where(eq(users.tenantId, id))
+      .where(and(eq(users.tenantId, id), eq(users.role, 'owner')))
       .orderBy(users.createdAt)
       .limit(1);
 
