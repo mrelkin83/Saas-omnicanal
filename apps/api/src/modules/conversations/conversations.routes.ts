@@ -4,6 +4,7 @@ import { requireAuth } from '../../middleware/require-auth.js';
 import { patchConversationSchema, createMessageSchema } from './conversations.schemas.js';
 import { listConversations, listConversationsWithCustomer, getConversationById, updateConversation, addMessage, setAIState, getAIState } from './conversations.service.js';
 import { sendMessage as channelSend } from '../channels/core/channel-manager.js';
+import { pushInboxEvent } from './inbox.sse.js';
 import { db, conversations, customers, eq, and } from '@saas/db';
 
 const conversationsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -48,17 +49,29 @@ const conversationsRoutes: FastifyPluginAsync = async (fastify) => {
     const msg = await addMessage(tenantId, id, request.user!.sub, data);
     if (!msg) return reply.status(404).send({ error: 'Not Found', message: 'Conversación no encontrada', code: 'NOT_FOUND' });
 
-    // Deliver via channel (best-effort: if no active session, just skip)
+    // Deliver via channel and push real-time SSE update
     try {
       const [row] = await db
-        .select({ channel: conversations.channel, customerPhone: customers.phone })
+        .select({
+          channel: conversations.channel,
+          customerId: conversations.customerId,
+          customerPhone: customers.phone,
+          customerName: customers.displayName,
+        })
         .from(conversations)
         .innerJoin(customers, eq(customers.id, conversations.customerId))
         .where(and(eq(conversations.id, id), eq(conversations.tenantId, tenantId)));
-      if (row?.customerPhone) {
-        await channelSend(tenantId, row.channel as Parameters<typeof channelSend>[1], row.customerPhone, {
-          type: 'text',
-          text: data.content,
+      if (row) {
+        if (row.customerPhone) {
+          await channelSend(tenantId, row.channel as Parameters<typeof channelSend>[1], row.customerPhone, {
+            type: 'text',
+            text: data.content,
+          });
+        }
+        pushInboxEvent(tenantId, 'message', {
+          conversationId: id,
+          message: msg,
+          customer: { id: row.customerId, displayName: row.customerName ?? row.customerPhone ?? '', phone: row.customerPhone },
         });
       }
     } catch { /* channel not connected — message saved but not sent */ }
