@@ -57,6 +57,13 @@ export async function handleIncomingMessage(msg: NormalizedMessage): Promise<voi
     // Channel might not be able to send (TikTok, etc.) — still save the message
   }
 
+  // Notify owner if AI failed to process the message
+  if (result.llmFailed && tenant.phone && channel === 'whatsapp') {
+    const customerName = customer.displayName ?? customer.phone ?? from;
+    const alert = `⚠️ Falla del asistente IA\nCliente: ${customerName}\nMensaje: "${text.slice(0, 100)}"\nEl cliente recibió un mensaje de fallback.`;
+    sendMessage(tenantId, 'whatsapp', tenant.phone, { type: 'text', text: alert }).catch(() => undefined);
+  }
+
   const outbound = await saveOutboundMessage(tenantId, conversation.id, customer.id, result.response);
 
   // Push AI response to inbox SSE

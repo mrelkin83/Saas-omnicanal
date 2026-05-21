@@ -57,6 +57,8 @@ export async function runAIEngine(
   try {
     llmResponse = await callLLM(llmMessages, llmOpts);
   } catch {
+    // Log so the owner sees it in AI Training → "Sin respuesta"
+    await logUnanswered(tenantId, customerId, conversationId, message).catch(() => undefined);
     return { response: 'Lo siento, nuestro asistente no está disponible en este momento. Un agente te atenderá pronto.', action: null, llmFailed: true };
   }
 
