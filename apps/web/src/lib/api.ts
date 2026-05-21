@@ -1,3 +1,5 @@
+import { useAuthStore } from '@/store/auth';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export class ApiError extends Error {
@@ -11,11 +13,39 @@ export class ApiError extends Error {
   }
 }
 
+// Deduplicates concurrent refresh attempts so only one network call is made
+let refreshPromise: Promise<string | null> | null = null;
+
+async function attemptRefresh(): Promise<string | null> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    try {
+      const { refreshToken, setTokens, clearAuth } = useAuthStore.getState();
+      if (!refreshToken) { clearAuth(); return null; }
+      const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) { clearAuth(); return null; }
+      const data = await res.json() as { accessToken: string; refreshToken: string };
+      setTokens(data.accessToken, data.refreshToken);
+      return data.accessToken;
+    } catch {
+      useAuthStore.getState().clearAuth();
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
+}
+
 async function request<T>(
   path: string,
-  init?: RequestInit & { token?: string },
+  init?: RequestInit & { token?: string; _retried?: boolean },
 ): Promise<T> {
-  const { token, ...rest } = init ?? {};
+  const { token, _retried, ...rest } = init ?? {};
   const headers: Record<string, string> = {
     ...(rest.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -23,6 +53,11 @@ async function request<T>(
   };
 
   const res = await fetch(`${API_BASE}${path}`, { ...rest, headers });
+
+  if (res.status === 401 && token && !_retried) {
+    const newToken = await attemptRefresh();
+    if (newToken) return request<T>(path, { ...init, token: newToken, _retried: true });
+  }
 
   if (res.status === 204) return undefined as T;
 

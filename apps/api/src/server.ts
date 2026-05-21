@@ -79,6 +79,9 @@ registerDriver(facebookDriver);
 registerDriver(tiktokDriver);
 
 whatsappDriver.onIncoming(handleIncomingMessage);
+instagramDriver.onIncoming(handleIncomingMessage);
+facebookDriver.onIncoming(handleIncomingMessage);
+tiktokDriver.onIncoming(handleIncomingMessage);
 
 // ── Plugins (order matters) ────────────────────────────────────────────────
 await app.register((await import('@fastify/multipart')).default, { limits: { fileSize: 10 * 1024 * 1024 } });
