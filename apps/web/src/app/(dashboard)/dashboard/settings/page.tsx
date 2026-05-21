@@ -185,31 +185,87 @@ function AiSection({ tenant, token, onSaved }: { tenant: TenantMe; token: string
   );
 }
 
-function PaymentsSection() {
+function PaymentsSection({ token }: { token: string }) {
+  const [publicKey, setPublicKey] = useState('');
+  const [privateKey, setPrivateKey] = useState('');
+  const [eventSecret, setEventSecret] = useState('');
+  const [existingId, setExistingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [ok, setOk] = useState(false);
+
+  useEffect(() => {
+    void api.integrations.list(token).then((list) => {
+      const wompi = list.find((i) => i.provider === 'wompi' && i.isActive);
+      if (wompi) {
+        setExistingId(wompi.id);
+        void api.integrations.getConfig(token, wompi.id).then((c) => {
+          const cfg = c.config as Record<string, string>;
+          setPublicKey(cfg['publicKey'] ?? '');
+          setPrivateKey(cfg['privateKey'] ?? '');
+          setEventSecret(cfg['eventSecret'] ?? '');
+        });
+      }
+    }).finally(() => setLoading(false));
+  }, [token]);
+
+  const save = async () => {
+    setSaving(true);
+    const config = {
+      ...(publicKey.trim() ? { publicKey: publicKey.trim() } : {}),
+      ...(privateKey.trim() ? { privateKey: privateKey.trim() } : {}),
+      ...(eventSecret.trim() ? { eventSecret: eventSecret.trim() } : {}),
+    };
+    try {
+      if (existingId) {
+        await api.integrations.patch(token, existingId, { config });
+      } else {
+        const created = await api.integrations.create(token, { provider: 'wompi', category: 'payment', config, isActive: true, isPrimary: true });
+        setExistingId(created.id);
+      }
+      setOk(true);
+      setTimeout(() => setOk(false), 2000);
+    } finally { setSaving(false); }
+  };
+
+  if (loading) return <p className="text-sm text-text-tertiary">Cargando...</p>;
+
   return (
     <div className="space-y-5">
-      <div
-        className="p-4 rounded-xl text-sm"
-        style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.20)' }}
-      >
-        <p className="font-medium" style={{ color: 'var(--accent-warning)' }}>⚠️ Próximamente</p>
+      <div className="p-4 rounded-xl text-sm" style={{ background: 'var(--accent-primary-subtle)', border: '1px solid var(--border-glow)' }}>
+        <p className="font-medium" style={{ color: 'var(--accent-primary)' }}>💳 Pagos con Wompi</p>
         <p className="text-text-secondary mt-1">
-          Integración con Wompi para recibir pagos de tus clientes directamente desde WhatsApp. Disponible en Fase 5.
+          Wompi procesa Nequi, Daviplata, tarjetas débito/crédito, PSE y más. El cliente elige su método dentro del checkout de Wompi.
+          Webhook URL para configurar en Wompi:{' '}
+          <code className="text-xs bg-black/20 px-1.5 py-0.5 rounded">
+            {`${process.env.NEXT_PUBLIC_API_URL ?? 'https://tudominio.com'}/api/webhooks/wompi/[tenantId]`}
+          </code>
         </p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
-          <label className={labelCls}>Wompi — Public Key</label>
-          <input disabled placeholder="pub_prod_XXXXXXXXXX" className={inputCls + ' opacity-50 cursor-not-allowed'} style={inputStyle} />
+          <label className={labelCls}>Public Key</label>
+          <input value={publicKey} onChange={(e) => setPublicKey(e.target.value)} placeholder="pub_prod_XXXXXXXXXX" className={inputCls} style={inputStyle} />
         </div>
         <div>
-          <label className={labelCls}>Wompi — Private Key</label>
-          <input disabled type="password" placeholder="prv_prod_XXXXXXXXXX" className={inputCls + ' opacity-50 cursor-not-allowed'} style={inputStyle} />
+          <label className={labelCls}>Private Key</label>
+          <input type="password" value={privateKey} onChange={(e) => setPrivateKey(e.target.value)} placeholder="prv_prod_XXXXXXXXXX" className={inputCls} style={inputStyle} />
         </div>
-        <div>
-          <label className={labelCls}>Wompi — Events Secret</label>
-          <input disabled placeholder="secret_XXXXXXXXXX" className={inputCls + ' opacity-50 cursor-not-allowed'} style={inputStyle} />
+        <div className="md:col-span-2">
+          <label className={labelCls}>Events Secret (para validar webhooks)</label>
+          <input type="password" value={eventSecret} onChange={(e) => setEventSecret(e.target.value)} placeholder="prod_integrity_XXXXXXXXXX" className={inputCls} style={inputStyle} />
         </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => void save()}
+          disabled={saving}
+          className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-60"
+          style={{ background: 'var(--accent-primary)' }}
+        >
+          {saving ? 'Guardando...' : existingId ? 'Actualizar credenciales' : 'Guardar credenciales'}
+        </button>
+        {ok && <span className="text-sm" style={{ color: 'var(--accent-success)' }}>✓ Guardado</span>}
       </div>
     </div>
   );
@@ -284,7 +340,7 @@ export default function SettingsPage() {
         <>
           {section === 'Negocio' && <BusinessSection tenant={tenant} token={accessToken!} onSaved={load} />}
           {section === 'IA y Agente' && <AiSection tenant={tenant} token={accessToken!} onSaved={load} />}
-          {section === 'Pagos' && <PaymentsSection />}
+          {section === 'Pagos' && <PaymentsSection token={accessToken!} />}
           {section === 'Apariencia' && <AppearanceSection />}
         </>
       )}
