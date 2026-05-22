@@ -2,17 +2,13 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
-
-interface ContactList { id: string; name: string; description: string | null; contactCount: number | null; createdAt: string; }
-interface Entry { id: string; phone: string; name: string | null; }
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+import { api, type ContactList, type ContactEntry } from '@/lib/api';
 
 export default function ContactsPage() {
   const { accessToken } = useAuthStore();
   const [lists, setLists] = useState<ContactList[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [entries, setEntries] = useState<ContactEntry[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [importing, setImporting] = useState(false);
@@ -21,8 +17,8 @@ export default function ContactsPage() {
 
   const load = useCallback(async () => {
     if (!accessToken) return;
-    const res = await fetch(`${API}/api/contact-lists`, { headers: { Authorization: `Bearer ${accessToken}` } });
-    if (res.ok) setLists(await res.json() as ContactList[]);
+    const data = await api.contactLists.list(accessToken);
+    setLists(data);
   }, [accessToken]);
 
   useEffect(() => { void load(); }, [load]);
@@ -30,19 +26,19 @@ export default function ContactsPage() {
   const loadEntries = async (id: string) => {
     if (!accessToken) return;
     setSelected(id); setImportResult(null);
-    const res = await fetch(`${API}/api/contact-lists/${id}/entries`, { headers: { Authorization: `Bearer ${accessToken}` } });
-    if (res.ok) setEntries(await res.json() as Entry[]);
+    const data = await api.contactLists.entries(accessToken, id);
+    setEntries(data);
   };
 
   const createList = async () => {
     if (!accessToken || !newName.trim()) return;
-    await fetch(`${API}/api/contact-lists`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` }, body: JSON.stringify({ name: newName.trim() }) });
+    await api.contactLists.create(accessToken, { name: newName.trim() });
     setNewName(''); setShowCreate(false); void load();
   };
 
   const deleteList = async (id: string) => {
     if (!accessToken) return;
-    await fetch(`${API}/api/contact-lists/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } });
+    await api.contactLists.delete(accessToken, id);
     if (selected === id) { setSelected(null); setEntries([]); }
     void load();
   };
@@ -53,13 +49,10 @@ export default function ContactsPage() {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await fetch(`${API}/api/contact-lists/${selected}/import-csv`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}` }, body: formData });
-      if (res.ok) {
-        const result = await res.json() as { imported: number; total: number };
-        setImportResult(result);
-        void load();
-        void loadEntries(selected);
-      }
+      const result = await api.contactLists.importCsv(accessToken, selected, formData);
+      setImportResult(result);
+      void load();
+      void loadEntries(selected);
     } catch { /* ignore */ } finally { setImporting(false); }
   };
 

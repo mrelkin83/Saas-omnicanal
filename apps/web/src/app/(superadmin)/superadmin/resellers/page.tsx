@@ -45,6 +45,15 @@ export default function SuperAdminResellersPage() {
     void load();
   };
 
+  const toggleActive = async (id: string, current: boolean | null) => {
+    await fetch(`${API}/api/superadmin/resellers/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${saToken()}` },
+      body: JSON.stringify({ isActive: !current }),
+    });
+    void load();
+  };
+
   return (
     <div style={{ padding: 32, color: '#f1f5f9' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
@@ -96,10 +105,16 @@ export default function SuperAdminResellersPage() {
                 {' · '}Ganancias: ${parseFloat(r.totalEarnings ?? '0').toLocaleString('es-CO')}
               </div>
             </div>
-            <button onClick={() => void deleteReseller(r.id)}
-              style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #dc2626', background: 'transparent', color: '#fca5a5', cursor: 'pointer', fontSize: 11 }}>
-              Eliminar
-            </button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={() => void toggleActive(r.id, r.isActive)}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #334155', background: 'transparent', color: r.isActive ? '#94a3b8' : '#38bdf8', cursor: 'pointer', fontSize: 11 }}>
+                {r.isActive ? 'Desactivar' : 'Activar'}
+              </button>
+              <button onClick={() => void deleteReseller(r.id)}
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #dc2626', background: 'transparent', color: '#fca5a5', cursor: 'pointer', fontSize: 11 }}>
+                Eliminar
+              </button>
+            </div>
           </div>
         ))}
         {resellers.length === 0 && <p style={{ color: '#64748b' }}>No hay resellers registrados.</p>}

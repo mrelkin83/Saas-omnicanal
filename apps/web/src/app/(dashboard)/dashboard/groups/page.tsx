@@ -2,10 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
-
-interface WaGroup { id: string; subject: string; size: number; desc?: string; }
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+import { api, type WaGroup } from '@/lib/api';
 
 export default function GroupsPage() {
   const { accessToken } = useAuthStore();
@@ -19,12 +16,9 @@ export default function GroupsPage() {
 
   useEffect(() => {
     if (!accessToken) return;
-    fetch(`${API}/api/groups`, { headers: { Authorization: `Bearer ${accessToken}` } })
-      .then(async (res) => {
-        if (!res.ok) { setError('WhatsApp no está conectado o no hay grupos.'); return; }
-        setGroups(await res.json() as WaGroup[]);
-      })
-      .catch(() => setError('Error cargando grupos.'))
+    api.groups.list(accessToken)
+      .then((data) => setGroups(data))
+      .catch(() => setError('WhatsApp no está conectado o no hay grupos.'))
       .finally(() => setLoading(false));
   }, [accessToken]);
 
@@ -33,16 +27,9 @@ export default function GroupsPage() {
     setSaving(true);
     const phones = participants.split(',').map((p) => p.trim()).filter(Boolean);
     try {
-      const res = await fetch(`${API}/api/groups`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ subject: subject.trim(), participants: phones }),
-      });
-      if (res.ok) {
-        const g = await res.json() as { groupJid: string };
-        setGroups((prev) => [...prev, { id: g.groupJid, subject: subject.trim(), size: phones.length + 1 }]);
-        setShowCreate(false); setSubject(''); setParticipants('');
-      }
+      const g = await api.groups.create(accessToken, { subject: subject.trim(), participants: phones });
+      setGroups((prev) => [...prev, { id: g.groupJid, subject: subject.trim(), size: phones.length + 1 }]);
+      setShowCreate(false); setSubject(''); setParticipants('');
     } catch { /* ignore */ } finally { setSaving(false); }
   };
 

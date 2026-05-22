@@ -96,6 +96,12 @@ export interface RegisterTenantInput {
   tenantName: string; businessType: string; plan: string;
 }
 
+export interface RegisterTenantResponse {
+  tenant: { id: string; name: string; slug: string };
+  accessToken: string;
+  refreshToken: string;
+}
+
 export interface Category {
   id: string; tenantId: string; name: string;
   parentId: string | null; sortOrder: number; createdAt: string;
@@ -136,7 +142,7 @@ export const api = {
     logout: (refreshToken: string, token: string) =>
       request<void>('/api/auth/logout', { method: 'POST', token, body: JSON.stringify({ refreshToken }) }),
     register: (input: RegisterTenantInput) =>
-      request<{ tenantId: string; userId: string }>('/api/auth/register-tenant', { method: 'POST', body: JSON.stringify(input) }),
+      request<RegisterTenantResponse>('/api/auth/register-tenant', { method: 'POST', body: JSON.stringify(input) }),
   },
 
   tenants: {
@@ -318,6 +324,23 @@ export const api = {
       request<ContactList>('/api/contact-lists', { method: 'POST', token, body: JSON.stringify(data) }),
     delete: (token: string, id: string) => request<void>(`/api/contact-lists/${id}`, { method: 'DELETE', token }),
     entries: (token: string, id: string) => request<ContactEntry[]>(`/api/contact-lists/${id}/entries`, { token }),
+    importCsv: async (token: string, listId: string, formData: FormData): Promise<{ imported: number; total: number }> => {
+      const doFetch = (t: string) => fetch(`${API_BASE}/api/contact-lists/${listId}/import-csv`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${t}` },
+        body: formData,
+      });
+      let res = await doFetch(token);
+      if (res.status === 401) {
+        const newToken = await attemptRefresh();
+        if (newToken) res = await doFetch(newToken);
+      }
+      if (!res.ok) {
+        const err = await res.json() as { code?: string; message?: string };
+        throw new ApiError(res.status, err.code ?? 'UNKNOWN', err.message ?? 'Error desconocido');
+      }
+      return res.json() as Promise<{ imported: number; total: number }>;
+    },
   },
 
   groups: {

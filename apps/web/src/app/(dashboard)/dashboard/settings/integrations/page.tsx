@@ -2,12 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth';
-
-interface Integration {
-  id: string; provider: string; category: string;
-  isActive: boolean | null; isPrimary: boolean | null;
-  config: Record<string, unknown>; createdAt: string; updatedAt: string;
-}
+import { api, type Integration } from '@/lib/api';
 
 const CATEGORIES = ['llm', 'payment', 'shipping', 'crm', 'erp', 'analytics', 'other'] as const;
 const CATEGORY_LABELS: Record<string, string> = {
@@ -22,8 +17,6 @@ const PROVIDER_PRESETS: Record<string, { category: string; fields: { key: string
   stripe:  { category: 'payment', fields: [{ key: 'apiKey', label: 'Secret Key', sensitive: true }, { key: 'webhookSecret', label: 'Webhook Secret', sensitive: true }] },
   custom:  { category: 'other',   fields: [] },
 };
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export default function IntegrationsPage() {
   const { accessToken } = useAuthStore();
@@ -42,8 +35,8 @@ export default function IntegrationsPage() {
 
   const load = useCallback(async () => {
     if (!accessToken) return;
-    const res = await fetch(`${API}/api/integrations`, { headers: { Authorization: `Bearer ${accessToken}` } });
-    if (res.ok) setIntegrations(await res.json() as Integration[]);
+    const data = await api.integrations.list(accessToken);
+    setIntegrations(data);
     setLoading(false);
   }, [accessToken]);
 
@@ -65,46 +58,33 @@ export default function IntegrationsPage() {
     const config: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(configFields)) { if (v.trim()) config[k] = v.trim(); }
     try {
-      const res = await fetch(`${API}/api/integrations`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ provider: providerName, category, config, isActive, isPrimary }),
-      });
-      if (res.ok) {
-        setShowCreate(false);
-        setConfigFields({});
-        setCustomProvider('');
-        setProvider('openai');
-        void load();
-      }
+      await api.integrations.create(accessToken, { provider: providerName, category, config, isActive, isPrimary });
+      setShowCreate(false);
+      setConfigFields({});
+      setCustomProvider('');
+      setProvider('openai');
+      void load();
     } catch { /* ignore */ } finally { setSaving(false); }
   };
 
   const deleteIntegration = async (id: string) => {
     if (!accessToken) return;
-    await fetch(`${API}/api/integrations/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } });
+    await api.integrations.delete(accessToken, id);
     void load();
   };
 
   const toggleActive = async (integration: Integration) => {
     if (!accessToken) return;
-    await fetch(`${API}/api/integrations/${integration.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ isActive: !integration.isActive }),
-    });
+    await api.integrations.patch(accessToken, integration.id, { isActive: !integration.isActive });
     void load();
   };
 
   const viewConfig = async (id: string) => {
     if (!accessToken) return;
     if (decryptedId === id) { setDecryptedId(null); setDecryptedConfig(null); return; }
-    const res = await fetch(`${API}/api/integrations/${id}/config`, { headers: { Authorization: `Bearer ${accessToken}` } });
-    if (res.ok) {
-      const data = await res.json() as Integration;
-      setDecryptedId(id);
-      setDecryptedConfig(data.config);
-    }
+    const data = await api.integrations.getConfig(accessToken, id);
+    setDecryptedId(id);
+    setDecryptedConfig(data.config);
   };
 
   return (
