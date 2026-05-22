@@ -73,10 +73,15 @@ const superadminDemosRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string };
     const adminId = request.user!.sub;
 
-    const [deleted] = await db.delete(tenants).where(eq(tenants.id, id)).returning({ id: tenants.id });
-    if (!deleted) return reply.status(404).send({ error: 'Not Found', message: 'Demo no encontrada', code: 'NOT_FOUND' });
+    const [existing] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.id, id));
+    if (!existing) return reply.status(404).send({ error: 'Not Found', message: 'Demo no encontrada', code: 'NOT_FOUND' });
 
-    await logAudit(adminId, 'DELETE_DEMO', 'tenant', id, {}, request.ip);
+    await db.update(tenants).set({
+      suspendedAt: new Date(),
+      suspendedReason: 'Demo eliminada por superadmin',
+    }).where(eq(tenants.id, id));
+
+    await logAudit(adminId, 'SUSPEND_DEMO', 'tenant', id, {}, request.ip);
     return reply.status(204).send();
   });
 };

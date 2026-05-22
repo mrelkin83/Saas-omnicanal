@@ -14,10 +14,21 @@ import * as evo from '../../lib/evolution-api.client.js';
 const channelsRoutes: FastifyPluginAsync = async (fastify) => {
   // ── WhatsApp ──────────────────────────────────────────────────────────────
 
-  fastify.post('/whatsapp/connect', { preHandler: [requireAuth('admin')] }, async (request, _reply) => {
+  fastify.post('/whatsapp/connect', { preHandler: [requireAuth('admin')] }, async (request, reply) => {
     const tenantId = request.user!.tenantId;
 
-    const result = await whatsappDriver.connect(tenantId, {});
+    let result;
+    try {
+      result = await whatsappDriver.connect(tenantId, {});
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      request.log.error({ err }, 'WhatsApp connect failed');
+      if (msg.includes('ECONNREFUSED') || msg.includes('ENOTFOUND') || msg.includes('fetch failed')) {
+        return reply.status(503).send({ error: 'Service Unavailable', message: 'No se pudo conectar con Evolution API. Verifica que el servicio esté corriendo.', code: 'EVO_UNREACHABLE' });
+      }
+      return reply.status(502).send({ error: 'Bad Gateway', message: `Error de Evolution API: ${msg}`, code: 'EVO_ERROR' });
+    }
+
     await upsertSession(tenantId, 'whatsapp', result.sessionId, 'pending_qr');
 
     // Poll for QR up to 10 seconds (Evolution generates it asynchronously)

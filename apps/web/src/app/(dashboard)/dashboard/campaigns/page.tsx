@@ -178,11 +178,7 @@ export default function CampaignsPage() {
     setImportingList(listId);
     const fd = new FormData();
     fd.append('file', file);
-    await fetch(`${API_URL}/api/contact-lists/${listId}/import-csv`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}` },
-      body: fd,
-    });
+    await api.contactLists.importCsv(accessToken, listId, fd).catch(() => {});
     void loadLists();
     if (expandedList === listId) {
       const entries = await api.contactLists.entries(accessToken, listId).catch(() => [] as ContactEntry[]);

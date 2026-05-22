@@ -45,6 +45,7 @@ function SaveBtn({ loading }: { loading: boolean }) {
 function BusinessSection({ tenant, token, onSaved }: { tenant: TenantMe; token: string; onSaved: () => void }) {
   const [loading, setLoading] = useState(false);
   const [ok, setOk] = useState(false);
+  const [error, setError] = useState('');
   const { register, handleSubmit, formState: { errors } } = useForm<BusinessForm>({
     resolver: zodResolver(businessSchema),
     defaultValues: {
@@ -59,6 +60,7 @@ function BusinessSection({ tenant, token, onSaved }: { tenant: TenantMe; token: 
 
   const onSubmit = async (data: BusinessForm) => {
     setLoading(true);
+    setError('');
     try {
       await api.tenants.patch(token, {
         name: data.name,
@@ -71,6 +73,8 @@ function BusinessSection({ tenant, token, onSaved }: { tenant: TenantMe; token: 
       setOk(true);
       onSaved();
       setTimeout(() => setOk(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar');
     } finally { setLoading(false); }
   };
 
@@ -106,6 +110,7 @@ function BusinessSection({ tenant, token, onSaved }: { tenant: TenantMe; token: 
       <div className="flex items-center gap-3">
         <SaveBtn loading={loading} />
         {ok && <span className="text-sm" style={{ color: 'var(--accent-success)' }}>✓ Guardado</span>}
+        {error && <span className="text-sm" style={{ color: 'var(--accent-danger)' }}>{error}</span>}
       </div>
     </form>
   );
@@ -114,6 +119,7 @@ function BusinessSection({ tenant, token, onSaved }: { tenant: TenantMe; token: 
 function AiSection({ tenant, token, onSaved }: { tenant: TenantMe; token: string; onSaved: () => void }) {
   const [loading, setLoading] = useState(false);
   const [ok, setOk] = useState(false);
+  const [error, setError] = useState('');
   const { register, handleSubmit } = useForm<AiForm>({
     resolver: zodResolver(aiSchema),
     defaultValues: {
@@ -127,11 +133,14 @@ function AiSection({ tenant, token, onSaved }: { tenant: TenantMe; token: string
 
   const onSubmit = async (data: AiForm) => {
     setLoading(true);
+    setError('');
     try {
       await api.tenants.patch(token, data);
       setOk(true);
       onSaved();
       setTimeout(() => setOk(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar');
     } finally { setLoading(false); }
   };
 
@@ -180,6 +189,7 @@ function AiSection({ tenant, token, onSaved }: { tenant: TenantMe; token: string
       <div className="flex items-center gap-3">
         <SaveBtn loading={loading} />
         {ok && <span className="text-sm" style={{ color: 'var(--accent-success)' }}>✓ Guardado</span>}
+        {error && <span className="text-sm" style={{ color: 'var(--accent-danger)' }}>{error}</span>}
       </div>
     </form>
   );
@@ -193,6 +203,7 @@ function PaymentsSection({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     void api.integrations.list(token).then((list) => {
@@ -204,13 +215,14 @@ function PaymentsSection({ token }: { token: string }) {
           setPublicKey(cfg['publicKey'] ?? '');
           setPrivateKey(cfg['privateKey'] ?? '');
           setEventSecret(cfg['eventSecret'] ?? '');
-        });
+        }).catch(() => {});
       }
-    }).finally(() => setLoading(false));
+    }).catch(() => {}).finally(() => setLoading(false));
   }, [token]);
 
   const save = async () => {
     setSaving(true);
+    setError('');
     const config = {
       ...(publicKey.trim() ? { publicKey: publicKey.trim() } : {}),
       ...(privateKey.trim() ? { privateKey: privateKey.trim() } : {}),
@@ -225,6 +237,8 @@ function PaymentsSection({ token }: { token: string }) {
       }
       setOk(true);
       setTimeout(() => setOk(false), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar credenciales');
     } finally { setSaving(false); }
   };
 
@@ -266,36 +280,53 @@ function PaymentsSection({ token }: { token: string }) {
           {saving ? 'Guardando...' : existingId ? 'Actualizar credenciales' : 'Guardar credenciales'}
         </button>
         {ok && <span className="text-sm" style={{ color: 'var(--accent-success)' }}>✓ Guardado</span>}
+        {error && <span className="text-sm" style={{ color: 'var(--accent-danger)' }}>{error}</span>}
       </div>
     </div>
   );
 }
 
 function AppearanceSection() {
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    return (localStorage.getItem('theme') as 'dark' | 'light') ?? 'dark';
+  });
+
+  const applyTheme = (t: 'dark' | 'light') => {
+    setTheme(t);
+    localStorage.setItem('theme', t);
+    document.documentElement.setAttribute('data-theme', t);
+  };
+
+  const themes = [
+    { key: 'dark' as const, label: 'Oscuro', bg: '#08090E' },
+    { key: 'light' as const, label: 'Claro', bg: '#F5F6FA' },
+  ];
+
   return (
     <div className="space-y-5">
-      <p className="text-sm text-text-secondary">Personaliza la apariencia de la plataforma. Más opciones disponibles en futuras versiones.</p>
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Oscuro (actual)', bg: '#08090E', active: true },
-          { label: 'Claro', bg: '#F5F6FA', active: false },
-          { label: 'Azul corporativo', bg: '#0A1628', active: false },
-        ].map((t) => (
-          <button
-            key={t.label}
-            className="rounded-xl p-4 border text-center text-xs transition-all"
-            style={{
-              background: t.bg,
-              borderColor: t.active ? 'var(--accent-primary)' : 'var(--border-subtle)',
-              color: t.active ? 'var(--accent-primary)' : 'var(--text-secondary)',
-              boxShadow: t.active ? '0 0 0 2px var(--accent-primary)' : 'none',
-            }}
-          >
-            <div className="h-8 rounded mb-2" style={{ background: t.bg }} />
-            {t.label}
-            {t.active && <span className="block mt-1" style={{ color: 'var(--accent-primary)' }}>✓ Activo</span>}
-          </button>
-        ))}
+      <p className="text-sm text-text-secondary">Personaliza la apariencia de la plataforma.</p>
+      <div className="grid grid-cols-2 gap-3">
+        {themes.map((t) => {
+          const active = theme === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => applyTheme(t.key)}
+              className="rounded-xl p-4 border text-center text-xs transition-all cursor-pointer"
+              style={{
+                background: t.bg,
+                borderColor: active ? 'var(--accent-primary)' : 'var(--border-subtle)',
+                color: active ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                boxShadow: active ? '0 0 0 2px var(--accent-primary)' : 'none',
+              }}
+            >
+              <div className="h-8 rounded mb-2" style={{ background: t.bg }} />
+              {t.label}
+              {active && <span className="block mt-1" style={{ color: 'var(--accent-primary)' }}>✓ Activo</span>}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -305,10 +336,15 @@ export default function SettingsPage() {
   const { accessToken } = useAuthStore();
   const [section, setSection] = useState<Section>('Negocio');
   const [tenant, setTenant] = useState<TenantMe | null>(null);
+  const [loadError, setLoadError] = useState('');
 
   const load = async () => {
     if (!accessToken) return;
-    setTenant(await api.tenants.me(accessToken));
+    try {
+      setTenant(await api.tenants.me(accessToken));
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Error cargando configuración');
+    }
   };
 
   useEffect(() => { void load(); }, [accessToken]);
@@ -335,7 +371,7 @@ export default function SettingsPage() {
       </div>
 
       {!tenant ? (
-        <p className="text-text-tertiary text-sm">Cargando...</p>
+        loadError ? <p className="text-sm" style={{ color: 'var(--accent-danger)' }}>{loadError}</p> : <p className="text-text-tertiary text-sm">Cargando...</p>
       ) : (
         <>
           {section === 'Negocio' && <BusinessSection tenant={tenant} token={accessToken!} onSaved={load} />}

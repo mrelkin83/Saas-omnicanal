@@ -18,3 +18,4 @@ export * from './integrations.js';
 export * from './deliveries.js';
 export * from './payments.js';
 export * from './analytics.js';
+export * from './billing.js';

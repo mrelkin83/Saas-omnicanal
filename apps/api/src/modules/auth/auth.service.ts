@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { db, users, tenants, saasPlans, eq } from '@saas/db';
+import { db, users, tenants, saasPlans, subscriptions, eq, or } from '@saas/db';
 import type { RegisterTenantInput } from './auth.schemas.js';
 
 export async function findUserByEmail(email: string) {
@@ -26,7 +26,7 @@ export async function registerTenant(input: RegisterTenantInput) {
     .replace(/^-|-$/g, '');
 
   const plan = await db.query.saasPlans.findFirst({
-    where: eq(saasPlans.slug, input.plan),
+    where: or(eq(saasPlans.id, input.plan), eq(saasPlans.slug, input.plan)),
   });
 
   return db.transaction(async (tx) => {
@@ -58,6 +58,26 @@ export async function registerTenant(input: RegisterTenantInput) {
       .returning();
 
     if (!user) throw new Error('Failed to create owner user');
+
+    if (plan) {
+      const now = new Date();
+      const periodEnd = new Date(now);
+      if (plan.billingCycle === 'annual') {
+        periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+      } else {
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+      }
+      await tx.insert(subscriptions).values({
+        tenantId: tenant.id,
+        planId: plan.id,
+        status: 'active',
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        amount: plan.priceCop,
+        currency: 'COP',
+        billingCycle: plan.billingCycle ?? 'monthly',
+      });
+    }
 
     return { tenant, user };
   });

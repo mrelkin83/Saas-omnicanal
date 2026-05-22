@@ -48,7 +48,8 @@ export async function wompiWebhookHandler(
       reply.status(500).send({ error: 'Internal error' });
       return;
     }
-    // Tenant has no active Wompi integration — continue without signature check
+    reply.status(200).send({ ok: true, skipped: 'no_wompi_config' });
+    return;
   }
 
   const checksum = body.signature?.checksum ?? '';

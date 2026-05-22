@@ -65,10 +65,10 @@ const superadminResellersRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string };
     const adminId = request.user!.sub;
 
-    const [deleted] = await db.delete(saasResellers).where(eq(saasResellers.id, id)).returning({ id: saasResellers.id });
-    if (!deleted) return reply.status(404).send({ error: 'Not Found', message: 'Reseller no encontrado', code: 'NOT_FOUND' });
+    const [updated] = await db.update(saasResellers).set({ isActive: false }).where(eq(saasResellers.id, id)).returning({ id: saasResellers.id });
+    if (!updated) return reply.status(404).send({ error: 'Not Found', message: 'Reseller no encontrado', code: 'NOT_FOUND' });
 
-    await logAudit(adminId, 'DELETE_RESELLER', 'reseller', id, {}, request.ip);
+    await logAudit(adminId, 'ARCHIVE_RESELLER', 'reseller', id, {}, request.ip);
     return reply.status(204).send();
   });
 };

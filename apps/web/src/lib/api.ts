@@ -375,6 +375,16 @@ export const api = {
       request<Appointment>(`/api/appointments/${id}`, { method: 'PATCH', token, body: JSON.stringify(data) }),
   },
 
+  payments: {
+    list: (token: string, params?: { status?: string }) => {
+      const qs = params?.status ? `?status=${params.status}` : '';
+      return request<Payment[]>(`/api/payments${qs}`, { token });
+    },
+    get: (token: string, id: string) => request<Payment>(`/api/payments/${id}`, { token }),
+    createLink: (token: string, data: { amount: number; customerId: string; orderId?: string; appointmentId?: string; customerEmail?: string; redirectUrl?: string }) =>
+      request<Payment>('/api/payments/create-link', { method: 'POST', token, body: JSON.stringify(data) }),
+  },
+
   ai: {
     simulate: (token: string, data: { customerPhone: string; message: string; channel?: string }) =>
       request<{ aiResponse: string; customerId: string; action: string | null }>('/api/dev/simulate-message', { method: 'POST', token, body: JSON.stringify(data) }),
@@ -527,4 +537,11 @@ export interface KnowledgeEntry {
 export interface UnansweredQuery {
   id: string; tenantId: string; question: string; status: string | null;
   customerId: string | null; conversationId: string | null; createdAt: string;
+}
+
+export interface Payment {
+  id: string; customerId: string; orderId: string | null; appointmentId: string | null;
+  provider: string | null; externalId: string | null; amount: string;
+  currency: string | null; status: string | null; paymentLink: string | null;
+  createdAt: string; updatedAt: string;
 }

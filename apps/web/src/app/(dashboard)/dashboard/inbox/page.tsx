@@ -38,6 +38,7 @@ export default function InboxPage() {
   const [sending, setSending] = useState(false);
   const [channelFilter, setChannelFilter] = useState<string>('all');
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [loadingList, setLoadingList] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const sseRef = useRef<EventSource | null>(null);
 
@@ -51,6 +52,8 @@ export default function InboxPage() {
       setConversations(rows);
     } catch {
       // ignore
+    } finally {
+      setLoadingList(false);
     }
   }, [accessToken, channelFilter]);
 
@@ -61,36 +64,45 @@ export default function InboxPage() {
   // SSE for real-time inbox updates
   useEffect(() => {
     if (!accessToken) return;
-    const es = new EventSource(`${API_BASE}/api/channels/inbox/stream?token=${encodeURIComponent(accessToken)}`);
-    sseRef.current = es;
+    let reconnectTimer: ReturnType<typeof setTimeout>;
+    const connect = () => {
+      const es = new EventSource(`${API_BASE}/api/channels/inbox/stream?token=${encodeURIComponent(accessToken)}`);
+      sseRef.current = es;
 
-    es.addEventListener('message', (e) => {
-      try {
-        const payload = JSON.parse(e.data) as InboxSSEMessage;
-        // Update conversation list unread/lastMessage
-        setConversations((prev) => {
-          const exists = prev.find((c) => c.id === payload.conversationId);
-          if (!exists) {
-            void loadConversations();
-            return prev;
+      es.addEventListener('message', (e) => {
+        try {
+          const payload = JSON.parse(e.data) as InboxSSEMessage;
+          setConversations((prev) => {
+            const exists = prev.find((c) => c.id === payload.conversationId);
+            if (!exists) {
+              void loadConversations();
+              return prev;
+            }
+            return prev.map((c) =>
+              c.id === payload.conversationId
+                ? { ...c, unreadCount: (c.unreadCount ?? 0) + (payload.message.direction === 'inbound' ? 1 : 0), lastMessageAt: payload.message.createdAt }
+                : c,
+            ).sort((a, b) => new Date(b.lastMessageAt ?? 0).getTime() - new Date(a.lastMessageAt ?? 0).getTime());
+          });
+
+          if (selectedId === payload.conversationId) {
+            setDetail((prev) => prev ? { ...prev, messages: [...prev.messages, payload.message] } : prev);
           }
-          return prev.map((c) =>
-            c.id === payload.conversationId
-              ? { ...c, unreadCount: (c.unreadCount ?? 0) + (payload.message.direction === 'inbound' ? 1 : 0), lastMessageAt: payload.message.createdAt }
-              : c,
-          ).sort((a, b) => new Date(b.lastMessageAt ?? 0).getTime() - new Date(a.lastMessageAt ?? 0).getTime());
-        });
+        } catch { /* ignore malformed */ }
+      });
 
-        // Append to open conversation thread
-        if (selectedId === payload.conversationId) {
-          setDetail((prev) => prev ? { ...prev, messages: [...prev.messages, payload.message] } : prev);
-        }
-      } catch { /* ignore malformed */ }
-    });
+      es.onerror = () => {
+        es.close();
+        void loadConversations();
+        reconnectTimer = setTimeout(connect, 3000);
+      };
+    };
 
-    es.onerror = () => { /* reconnect is automatic */ };
-
-    return () => { es.close(); };
+    connect();
+    return () => {
+      clearTimeout(reconnectTimer);
+      sseRef.current?.close();
+    };
   }, [accessToken, selectedId, loadConversations]);
 
   const selectConversation = async (id: string) => {
@@ -164,7 +176,8 @@ export default function InboxPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {conversations.length === 0 && (
+          {loadingList && <p style={{ padding: 16, color: 'var(--muted-foreground)', fontSize: 13 }}>Cargando conversaciones...</p>}
+          {!loadingList && conversations.length === 0 && (
             <p style={{ padding: 16, color: 'var(--muted-foreground)', fontSize: 13 }}>No hay conversaciones</p>
           )}
           {conversations.map((conv) => (

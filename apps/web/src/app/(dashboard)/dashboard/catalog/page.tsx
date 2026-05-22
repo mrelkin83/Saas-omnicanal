@@ -134,18 +134,27 @@ export default function CatalogPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | 'categories' | null>(null);
   const [editTarget, setEditTarget] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
+  const [error, setError] = useState('');
   const [newCatName, setNewCatName] = useState('');
   const [catSaving, setCatSaving] = useState(false);
   const isAdmin = user?.role === 'owner' || user?.role === 'admin';
 
   const load = useCallback(async () => {
     if (!accessToken) return;
-    const [prods, cats] = await Promise.all([
-      api.products.list(accessToken, search ? { search } : undefined),
-      api.categories.list(accessToken),
-    ]);
-    setProducts(prods);
-    setCategories(cats);
+    setError('');
+    try {
+      const [prods, cats] = await Promise.all([
+        api.products.list(accessToken, search ? { search } : undefined),
+        api.categories.list(accessToken),
+      ]);
+      setProducts(prods);
+      setCategories(cats);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error cargando datos');
+    } finally {
+      setLoadingData(false);
+    }
   }, [accessToken, search]);
 
   useEffect(() => { void load(); }, [load]);
@@ -153,43 +162,61 @@ export default function CatalogPage() {
   const handleCreate = async (data: FormData) => {
     if (!accessToken) return;
     setIsLoading(true);
+    setError('');
     try {
       await api.products.create(accessToken, data);
       setModalMode(null);
       await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error creando producto');
     } finally { setIsLoading(false); }
   };
 
   const handleEdit = async (data: FormData) => {
     if (!accessToken || !editTarget) return;
     setIsLoading(true);
+    setError('');
     try {
       await api.products.update(accessToken, editTarget.id, data);
       setModalMode(null);
       setEditTarget(null);
       await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error editando producto');
     } finally { setIsLoading(false); }
   };
 
   const handleDelete = async (id: string) => {
     if (!accessToken || !confirm('¿Eliminar producto?')) return;
-    await api.products.delete(accessToken, id);
-    await load();
+    try {
+      await api.products.delete(accessToken, id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error eliminando producto');
+    }
   };
 
   const handleCatCreate = async () => {
     if (!accessToken || !newCatName.trim()) return;
     setCatSaving(true);
-    await api.categories.create(accessToken, { name: newCatName.trim() });
-    setNewCatName('');
-    await load();
-    setCatSaving(false);
+    setError('');
+    try {
+      await api.categories.create(accessToken, { name: newCatName.trim() });
+      setNewCatName('');
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error creando categoría');
+    } finally { setCatSaving(false); }
   };
 
   const handleCatDelete = async (id: string) => {
     if (!accessToken) return;
-    await api.categories.delete(accessToken, id);
-    await load();
+    try {
+      await api.categories.delete(accessToken, id);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error eliminando categoría');
+    }
   };
 
   const formatPrice = (price: string | null) =>
@@ -200,6 +227,8 @@ export default function CatalogPage() {
 
   return (
     <div className="p-8">
+      {loadingData && <p className="text-text-tertiary text-sm mb-4">Cargando catálogo...</p>}
+      {error && <p className="text-sm mb-4" style={{ color: 'var(--accent-danger)' }}>{error}</p>}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold text-text-primary">Catálogo</h1>
         {isAdmin && (

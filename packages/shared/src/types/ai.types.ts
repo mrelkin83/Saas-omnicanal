@@ -1,4 +1,3 @@
-import type { AIAction } from '../constants/actions.js';
 import type { ChannelType } from '../constants/channels.js';
 
 export interface ChatMessage {
@@ -7,9 +6,8 @@ export interface ChatMessage {
 }
 
 export interface ParsedAction {
-  accion: AIAction;
-  datos: Record<string, unknown>;
-  razonamiento?: string;
+  accion: string;
+  params: Record<string, unknown>;
 }
 
 export interface AIEngineInput {

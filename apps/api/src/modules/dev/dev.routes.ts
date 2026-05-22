@@ -13,6 +13,9 @@ const simulateBodySchema = z.object({
 
 const devRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/simulate-message', { preHandler: [requireAuth()] }, async (request, reply) => {
+    if (process.env['NODE_ENV'] === 'production') {
+      return reply.status(404).send({ error: 'Not Found' });
+    }
     const tenantId = request.user!.tenantId;
 
     const parsed = simulateBodySchema.safeParse(request.body);

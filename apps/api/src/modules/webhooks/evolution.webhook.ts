@@ -80,6 +80,13 @@ async function handleMessagesUpsert(instanceName: string, data: Record<string, u
 }
 
 export async function evolutionWebhookHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const apiKey = (request.headers['apikey'] as string | undefined)
+    ?? (request.headers['x-api-key'] as string | undefined);
+  if (!apiKey || apiKey !== process.env['EVOLUTION_API_GLOBAL_KEY']) {
+    reply.status(403).send({ error: 'Forbidden', message: 'Invalid API key' });
+    return;
+  }
+
   const body = request.body as EvoEvent;
   const { event, instance, data } = body;
 

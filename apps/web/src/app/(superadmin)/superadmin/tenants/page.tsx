@@ -24,9 +24,10 @@ export default function SuperAdminTenantsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [plans, setPlans] = useState<{ id: string; name: string; slug: string }[]>([]);
   const [form, setForm] = useState({
     tenantName: '', businessType: 'restaurante_comida_rapida',
-    ownerName: '', ownerEmail: '', ownerPassword: '', plan: 'free',
+    ownerName: '', ownerEmail: '', ownerPassword: '', plan: '',
   });
 
   const load = useCallback(async () => {
@@ -40,6 +41,15 @@ export default function SuperAdminTenantsPage() {
   }, [router, search]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const token = saToken();
+    if (!token) return;
+    void fetch(`${API}/api/superadmin/plans`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.ok ? r.json() as Promise<{ id: string; name: string; slug: string }[]> : [])
+      .then((p) => { setPlans(p); if (p.length > 0 && !form.plan) setForm((f) => ({ ...f, plan: p[0]!.id })); })
+      .catch(() => {});
+  }, []);
 
   const suspend = async (id: string) => {
     await fetch(`${API}/api/superadmin/tenants/${id}/suspend`, {
@@ -88,7 +98,7 @@ export default function SuperAdminTenantsPage() {
         throw new Error(err.message ?? 'Error creando tenant');
       }
       setShowCreate(false);
-      setForm({ tenantName: '', businessType: 'restaurante_comida_rapida', ownerName: '', ownerEmail: '', ownerPassword: '', plan: 'free' });
+      setForm({ tenantName: '', businessType: 'restaurante_comida_rapida', ownerName: '', ownerEmail: '', ownerPassword: '', plan: plans[0]?.id ?? '' });
       void load();
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : 'Error desconocido');
@@ -147,7 +157,8 @@ export default function SuperAdminTenantsPage() {
               <div>
                 <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Plan</label>
                 <select value={form.plan} onChange={(e) => setForm((f) => ({ ...f, plan: e.target.value }))} style={inp}>
-                  {['free', 'starter', 'pro'].map((p) => <option key={p} value={p}>{p}</option>)}
+                  {plans.length === 0 && <option value="">Cargando planes...</option>}
+                  {plans.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.slug})</option>)}
                 </select>
               </div>
               {createError && <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{createError}</p>}

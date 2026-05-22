@@ -19,7 +19,7 @@ export const registerTenantSchema = z.object({
   ownerEmail: z.string().email(),
   ownerPassword: z.string().min(8),
   ownerName: z.string().min(2).max(255),
-  plan: z.enum(['free', 'starter', 'pro']).default('free'),
+  plan: z.string().min(1).default('free'),
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

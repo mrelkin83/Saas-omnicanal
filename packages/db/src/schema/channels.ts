@@ -5,6 +5,8 @@ import {
 import { tenants } from './tenants.js';
 import { customers } from './customers.js';
 import { users } from './users.js';
+import { departments } from './departments.js';
+import { kanbanColumns } from './kanban.js';
 
 export const channelSessions = pgTable('channel_sessions', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -28,8 +30,8 @@ export const conversations = pgTable('conversations', {
   channelSessionId: uuid('channel_session_id').references(() => channelSessions.id),
   status: varchar('status', { length: 20 }).default('open'),
   assignedUserId: uuid('assigned_user_id').references(() => users.id),
-  departmentId: uuid('department_id'),
-  kanbanColumnId: uuid('kanban_column_id'),
+  departmentId: uuid('department_id').references(() => departments.id),
+  kanbanColumnId: uuid('kanban_column_id').references(() => kanbanColumns.id),
   potentialValue: decimal('potential_value', { precision: 12, scale: 2 }).default('0'),
   kanbanMovedAt: timestamp('kanban_moved_at', { withTimezone: true }),
   unreadCount: integer('unread_count').default(0),

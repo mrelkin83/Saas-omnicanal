@@ -56,7 +56,16 @@ export default function IntegrationsPage() {
     if (!providerName) return;
     setSaving(true);
     const config: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(configFields)) { if (v.trim()) config[k] = v.trim(); }
+    if (provider === 'custom' && configFields['__raw']?.trim()) {
+      try {
+        const parsed = JSON.parse(configFields['__raw']);
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          Object.assign(config, parsed);
+        }
+      } catch { /* invalid JSON — skip */ }
+    } else {
+      for (const [k, v] of Object.entries(configFields)) { if (k !== '__raw' && v.trim()) config[k] = v.trim(); }
+    }
     try {
       await api.integrations.create(accessToken, { provider: providerName, category, config, isActive, isPrimary });
       setShowCreate(false);

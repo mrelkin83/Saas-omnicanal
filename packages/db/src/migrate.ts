@@ -30,17 +30,23 @@ export async function runMigrations(): Promise<void> {
 
   await migrate(db, { migrationsFolder });
 
-  // Create non-superuser app role (subject to RLS — use for tenant isolation tests)
-  await migrationClient`
+  const appRolePassword = process.env['DB_APP_ROLE_PASSWORD'] ?? (() => {
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new Error('DB_APP_ROLE_PASSWORD is required in production. Set it in your environment.');
+    }
+    return 'saas_dev_password';
+  })();
+
+  await migrationClient.unsafe(`
     DO $$
     BEGIN
       IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'app') THEN
-        CREATE ROLE app WITH LOGIN PASSWORD 'saas_dev_password'
+        CREATE ROLE app WITH LOGIN PASSWORD '${appRolePassword.replace(/'/g, "''")}'
           NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS;
       END IF;
     END
     $$
-  `;
+  `);
 
   await migrationClient`GRANT USAGE ON SCHEMA public TO app`;
   await migrationClient`GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app`;
@@ -56,7 +62,8 @@ export async function runMigrations(): Promise<void> {
     'channel_sessions', 'conversations', 'conversation_state', 'tenant_config',
     'ai_knowledge_entries', 'ai_unanswered_queries', 'departments',
     'kanban_columns', 'contact_lists', 'campaigns', 'integrations',
-    'deliveries', 'payments', 'analytics_daily',
+    'deliveries', 'payments', 'analytics_daily', 'messages',
+    'subscriptions', 'usage_counters',
   ];
 
   for (const table of tenantTables) {
@@ -77,7 +84,6 @@ export async function runMigrations(): Promise<void> {
   }
 
   const fkTables: Array<{ table: string; using: string }> = [
-    { table: 'messages',           using: `conversation_id IN (SELECT id FROM conversations WHERE tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)` },
     { table: 'cart_items',         using: `cart_id IN (SELECT id FROM carts WHERE tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)` },
     { table: 'order_items',        using: `order_id IN (SELECT id FROM orders WHERE tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)` },
     { table: 'department_members', using: `department_id IN (SELECT id FROM departments WHERE tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)` },
@@ -94,7 +100,9 @@ export async function runMigrations(): Promise<void> {
           SELECT FROM pg_policies WHERE tablename = '${table}' AND policyname = 'tenant_isolation'
         ) THEN
           CREATE POLICY tenant_isolation ON "${table}"
-            AS PERMISSIVE FOR ALL TO app USING (${usingExpr});
+            AS PERMISSIVE FOR ALL TO app
+            USING (${usingExpr})
+            WITH CHECK (${usingExpr});
         END IF;
       END $$
     `);

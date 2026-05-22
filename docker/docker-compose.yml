@@ -130,12 +130,36 @@ services:
       - api
     networks: [internal]
 
+  # ── PostgreSQL Backup ──────────────────────────────────────────────────
+  backup:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: saas_omnichannel
+    volumes:
+      - backups:/backups
+    entrypoint: >
+      /bin/sh -c "while true; do
+        FILENAME=/backups/saas_$$(date +%Y%m%d_%H%M%S).sql.gz;
+        pg_dump -h $$PGHOST -U $$PGUSER $$PGDATABASE | gzip > $$FILENAME;
+        find /backups -name 'saas_*.sql.gz' -mtime +7 -delete;
+        echo \"[backup] $$FILENAME created\";
+        sleep 86400;
+      done"
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [internal]
+
 volumes:
   pgdata:
   redisdata:
   ig_sessions:
   caddy_data:
   caddy_config:
+  backups:
 
 networks:
   internal:

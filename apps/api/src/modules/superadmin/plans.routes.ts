@@ -71,10 +71,10 @@ const superadminPlansRoutes: FastifyPluginAsync = async (fastify) => {
     const { id } = request.params as { id: string };
     const adminId = request.user!.sub;
 
-    const [deleted] = await db.delete(saasPlans).where(eq(saasPlans.id, id)).returning({ id: saasPlans.id });
-    if (!deleted) return reply.status(404).send({ error: 'Not Found', message: 'Plan no encontrado', code: 'NOT_FOUND' });
+    const [updated] = await db.update(saasPlans).set({ isActive: false }).where(eq(saasPlans.id, id)).returning({ id: saasPlans.id });
+    if (!updated) return reply.status(404).send({ error: 'Not Found', message: 'Plan no encontrado', code: 'NOT_FOUND' });
 
-    await logAudit(adminId, 'DELETE_PLAN', 'plan', id, {}, request.ip);
+    await logAudit(adminId, 'ARCHIVE_PLAN', 'plan', id, {}, request.ip);
     return reply.status(204).send();
   });
 };

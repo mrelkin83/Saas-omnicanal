@@ -1,11 +1,11 @@
 import type { FastifyPluginAsync } from 'fastify';
 import os from 'node:os';
-import { execSync } from 'node:child_process';
+import { exec } from 'node:child_process';
 import { requireSuperAdmin } from '../../middleware/require-superadmin.js';
 import { redis } from '../../lib/redis.js';
 
 const CACHE_KEY = 'superadmin:monitor:health';
-const CACHE_TTL = 10; // seconds
+const CACHE_TTL = 10;
 
 function getCpuPercent(): number {
   const [load1m] = os.loadavg();
@@ -25,19 +25,19 @@ function getRamStats() {
   };
 }
 
-function getDiskStats(): { totalGb: number; usedGb: number; freeGb: number; percent: number } | null {
-  try {
-    const output = execSync('df -B1 / 2>/dev/null | tail -1', { timeout: 2000, encoding: 'utf-8' });
-    const parts = output.trim().split(/\s+/);
-    if (parts.length < 5) return null;
-    const total = parseInt(parts[1] ?? '0', 10);
-    const used = parseInt(parts[2] ?? '0', 10);
-    const free = parseInt(parts[3] ?? '0', 10);
-    const toGb = (b: number) => Math.round((b / 1024 / 1024 / 1024) * 10) / 10;
-    return { totalGb: toGb(total), usedGb: toGb(used), freeGb: toGb(free), percent: Math.round((used / Math.max(total, 1)) * 100) };
-  } catch {
-    return null;
-  }
+function getDiskStats(): Promise<{ totalGb: number; usedGb: number; freeGb: number; percent: number } | null> {
+  return new Promise((resolve) => {
+    exec('df -B1 / 2>/dev/null | tail -1', { timeout: 2000 }, (err, stdout) => {
+      if (err) { resolve(null); return; }
+      const parts = stdout.trim().split(/\s+/);
+      if (parts.length < 5) { resolve(null); return; }
+      const total = parseInt(parts[1] ?? '0', 10);
+      const used = parseInt(parts[2] ?? '0', 10);
+      const free = parseInt(parts[3] ?? '0', 10);
+      const toGb = (b: number) => Math.round((b / 1024 / 1024 / 1024) * 10) / 10;
+      resolve({ totalGb: toGb(total), usedGb: toGb(used), freeGb: toGb(free), percent: Math.round((used / Math.max(total, 1)) * 100) });
+    });
+  });
 }
 
 const superadminMonitorRoutes: FastifyPluginAsync = async (fastify) => {
@@ -48,7 +48,7 @@ const superadminMonitorRoutes: FastifyPluginAsync = async (fastify) => {
     const data = {
       cpu: getCpuPercent(),
       ram: getRamStats(),
-      disk: getDiskStats(),
+      disk: await getDiskStats(),
       uptime: Math.round(os.uptime()),
       nodeVersion: process.version,
       platform: process.platform,

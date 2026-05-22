@@ -34,12 +34,23 @@ export default function DashboardPage() {
   const [tenant, setTenant] = useState<TenantMe | null>(null);
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [channels, setChannels] = useState<Record<string, ChannelStatus | null>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!accessToken) return;
-    void api.tenants.me(accessToken).then(setTenant).catch(() => null);
-    void api.analytics.dashboard(accessToken).then(setKpis).catch(() => null);
-    void api.channels.allStatus(accessToken).then((s) => setChannels(s as Record<string, ChannelStatus | null>)).catch(() => null);
+    setLoading(true);
+    setError('');
+    Promise.all([
+      api.tenants.me(accessToken).catch(() => null),
+      api.analytics.dashboard(accessToken).catch(() => null),
+      api.channels.allStatus(accessToken).then((s) => s as Record<string, ChannelStatus | null>).catch(() => ({} as Record<string, ChannelStatus | null>)),
+    ]).then(([t, k, c]) => {
+      setTenant(t);
+      setKpis(k);
+      setChannels(c);
+      if (!t && !k) setError('No se pudo cargar el dashboard. Verifica tu conexión.');
+    }).catch(() => setError('Error cargando dashboard')).finally(() => setLoading(false));
   }, [accessToken]);
 
   const hour = new Date().getHours();
@@ -65,6 +76,9 @@ export default function DashboardPage() {
 
   return (
     <div style={{ padding: 32, maxWidth: 1000, margin: '0 auto' }}>
+      {loading && <p style={{ color: 'var(--text-tertiary)' }}>Cargando dashboard...</p>}
+      {error && <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 16 }}>{error}</p>}
+
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px' }}>

@@ -21,19 +21,28 @@ export default function DepartmentsPage() {
   const [newDesc, setNewDesc] = useState('');
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const isAdmin = me?.role === 'owner' || me?.role === 'admin';
 
   const load = useCallback(async () => {
     if (!accessToken) return;
-    const [depts, usrs] = await Promise.all([
-      api.departments.list(accessToken),
-      api.users.list(accessToken),
-    ]);
-    setDepartments(depts);
-    setUsers(usrs);
-    const self = usrs.find((u) => u.id === me?.sub);
-    if (self?.agentStatus) setMyStatus(self.agentStatus);
+    setError('');
+    try {
+      const [depts, usrs] = await Promise.all([
+        api.departments.list(accessToken),
+        api.users.list(accessToken),
+      ]);
+      setDepartments(depts);
+      setUsers(usrs);
+      const self = usrs.find((u) => u.id === me?.sub);
+      if (self?.agentStatus) setMyStatus(self.agentStatus);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error cargando departamentos');
+    } finally {
+      setLoading(false);
+    }
   }, [accessToken, me?.sub]);
 
   useEffect(() => { void load(); }, [load]);
@@ -68,8 +77,13 @@ export default function DepartmentsPage() {
 
   const changeMyStatus = async (status: string) => {
     if (!accessToken) return;
+    const prev = myStatus;
     setMyStatus(status);
-    await api.agentStatus.set(accessToken, status as 'available' | 'busy' | 'away' | 'offline').catch(() => null);
+    try {
+      await api.agentStatus.set(accessToken, status as 'available' | 'busy' | 'away' | 'offline');
+    } catch {
+      setMyStatus(prev);
+    }
   };
 
   const memberIds = (dept: Department) => new Set(dept.members.map((m) => m.userId));
@@ -124,7 +138,9 @@ export default function DepartmentsPage() {
         </div>
       )}
 
-      {departments.length === 0 && <p style={{ color: 'var(--muted-foreground)' }}>No hay departamentos. Crea el primero.</p>}
+      {loading && <p style={{ color: 'var(--muted-foreground)' }}>Cargando...</p>}
+      {error && <p style={{ color: '#ef4444', fontSize: 13 }}>{error}</p>}
+      {!loading && departments.length === 0 && <p style={{ color: 'var(--muted-foreground)' }}>No hay departamentos. Crea el primero.</p>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {departments.map((dept) => (

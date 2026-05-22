@@ -178,11 +178,11 @@ export default function OnboardingWizard({ onComplete }: Props) {
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
         {[
-          { icon: '📡', action: () => { onComplete(); router.push('/dashboard/channels'); }, label: 'Conectar WhatsApp ahora', primary: true },
-          { icon: '📦', action: () => { onComplete(); router.push('/dashboard/catalog'); }, label: 'Agregar mis productos / servicios', primary: false },
-          { icon: '🧠', action: () => { onComplete(); router.push('/dashboard/ai-training'); }, label: 'Entrenar la IA con mis preguntas frecuentes', primary: false },
+          { icon: '📡', action: async () => { await finish(); router.push('/dashboard/channels'); }, label: 'Conectar WhatsApp ahora', primary: true },
+          { icon: '📦', action: async () => { await finish(); router.push('/dashboard/catalog'); }, label: 'Agregar mis productos / servicios', primary: false },
+          { icon: '🧠', action: async () => { await finish(); router.push('/dashboard/ai-training'); }, label: 'Entrenar la IA con mis preguntas frecuentes', primary: false },
         ].map((btn) => (
-          <button key={btn.label} onClick={btn.action} style={{
+          <button key={btn.label} onClick={() => void btn.action()} disabled={saving} style={{
             padding: '12px 20px', borderRadius: 10, border: btn.primary ? 'none' : '1px solid #334155',
             background: btn.primary ? '#3b82f6' : 'transparent', color: btn.primary ? '#fff' : '#94a3b8',
             cursor: 'pointer', fontWeight: btn.primary ? 700 : 400, fontSize: 14, display: 'flex', alignItems: 'center', gap: 10,

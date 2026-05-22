@@ -1,6 +1,10 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import { loginSchema, refreshSchema, logoutSchema, registerTenantSchema } from './auth.schemas.js';
-import { findUserByEmail, verifyPassword, registerTenant } from './auth.service.js';
+import { findUserByEmail, verifyPassword, registerTenant, hashPassword } from './auth.service.js';
+import { db, users, passwordResetTokens, eq, and, gt, isNull } from '@saas/db';
+import { randomBytes } from 'node:crypto';
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /api/auth/login
@@ -70,6 +74,59 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
       throw err;
     }
+  });
+
+  fastify.post('/forgot-password', async (request, reply) => {
+    const { email } = z.object({ email: z.string().email() }).parse(request.body);
+
+    const user = await findUserByEmail(email);
+    if (!user) return reply.status(200).send({ ok: true });
+
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = await bcrypt.hash(rawToken, 10);
+    const expiresAt = new Date(Date.now() + 3600000);
+
+    await db.insert(passwordResetTokens).values({
+      userId: user.id,
+      tokenHash,
+      expiresAt,
+    });
+
+    console.log(`[auth] Password reset token for ${email}: ${rawToken}`);
+
+    return reply.status(200).send({ ok: true, message: 'Si el email existe, recibirás instrucciones' });
+  });
+
+  fastify.post('/reset-password', async (request, reply) => {
+    const { token, newPassword } = z.object({
+      token: z.string().min(1),
+      newPassword: z.string().min(6),
+    }).parse(request.body);
+
+    const now = new Date();
+    const allTokens = await db.select().from(passwordResetTokens)
+      .where(and(isNull(passwordResetTokens.usedAt), gt(passwordResetTokens.expiresAt, now)));
+
+    let matchedUserId: string | null = null;
+    let matchedTokenId: string | null = null;
+    for (const t of allTokens) {
+      const valid = await bcrypt.compare(token, t.tokenHash);
+      if (valid) {
+        matchedUserId = t.userId;
+        matchedTokenId = t.id;
+        break;
+      }
+    }
+
+    if (!matchedUserId || !matchedTokenId) {
+      return reply.status(400).send({ error: 'Bad Request', message: 'Token inválido o expirado', code: 'INVALID_TOKEN' });
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await db.update(users).set({ passwordHash }).where(eq(users.id, matchedUserId));
+    await db.update(passwordResetTokens).set({ usedAt: now }).where(eq(passwordResetTokens.id, matchedTokenId));
+
+    return reply.status(200).send({ ok: true });
   });
 };
 

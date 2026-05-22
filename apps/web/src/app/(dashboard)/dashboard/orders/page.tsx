@@ -5,18 +5,18 @@ import { useAuthStore } from '@/store/auth';
 import { api, type Order } from '@/lib/api';
 
 const STATUS_FLOW: Record<string, { next: string; label: string; color: string } | undefined> = {
-  pending:    { next: 'confirmed',  label: 'Confirmar',    color: '#3b82f6' },
-  confirmed:  { next: 'preparing', label: 'En preparación', color: '#f59e0b' },
-  preparing:  { next: 'shipped',   label: 'Despachar',     color: '#8b5cf6' },
-  shipped:    { next: 'delivered', label: 'Entregado',     color: '#22c55e' },
+  pending:    { next: 'confirmed',   label: 'Confirmar',      color: '#3b82f6' },
+  confirmed:  { next: 'processing', label: 'En preparación',  color: '#f59e0b' },
+  processing: { next: 'shipped',    label: 'Despachar',       color: '#8b5cf6' },
+  shipped:    { next: 'delivered',  label: 'Entregado',       color: '#22c55e' },
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pendiente', confirmed: 'Confirmado', preparing: 'En preparación',
+  pending: 'Pendiente', confirmed: 'Confirmado', processing: 'En preparación',
   shipped: 'Despachado', delivered: 'Entregado', cancelled: 'Cancelado',
 };
 const STATUS_COLORS: Record<string, string> = {
-  pending: '#f59e0b', confirmed: '#3b82f6', preparing: '#8b5cf6',
+  pending: '#f59e0b', confirmed: '#3b82f6', processing: '#8b5cf6',
   shipped: '#6366f1', delivered: '#22c55e', cancelled: '#ef4444',
 };
 const PAY_LABELS: Record<string, string> = {
@@ -55,7 +55,7 @@ export default function OrdersPage() {
     } catch { /* ignore */ } finally { setUpdating(null); }
   };
 
-  const statuses = ['all', 'pending', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled'];
+  const statuses = ['all', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];
 
   return (
     <div style={{ padding: 24 }}>

@@ -38,6 +38,7 @@ import aiRoutes from './modules/ai/ai.routes.js';
 import devRoutes from './modules/dev/dev.routes.js';
 import channelsRoutes from './modules/channels/channels.routes.js';
 import webhooksRoutes from './modules/webhooks/webhooks.routes.js';
+import billingRoutes from './modules/billing/billing.routes.js';
 import { registerDriver, initChannelSendQueue, stopChannelSendQueue } from './modules/channels/core/channel-manager.js';
 import { whatsappDriver } from './modules/channels/drivers/whatsapp/whatsapp.driver.js';
 import { instagramDriver } from './modules/channels/drivers/instagram/instagram.driver.js';
@@ -48,6 +49,7 @@ import { startInstagramPoller, stopInstagramPoller } from './jobs/instagram-poll
 import { startTikTokScraper, stopTikTokScraper } from './jobs/tiktok-scraper.job.js';
 import { startDemoExpiryJob, stopDemoExpiryJob } from './jobs/demo-expiry.job.js';
 import { startReminderJob, stopReminderJob } from './jobs/reminder.job.js';
+import { startBillingEnforcement, stopBillingEnforcement } from './jobs/billing-enforcement.job.js';
 import superadminAuthRoutes from './modules/superadmin/auth.routes.js';
 import superadminTenantsRoutes from './modules/superadmin/tenants.routes.js';
 import superadminPlansRoutes from './modules/superadmin/plans.routes.js';
@@ -149,6 +151,7 @@ await app.register(async (api) => {
   await api.register(devRoutes, { prefix: '/dev' });
   await api.register(channelsRoutes, { prefix: '/channels' });
   await api.register(webhooksRoutes, { prefix: '/webhooks' });
+  await api.register(billingRoutes, { prefix: '/billing' });
 }, { prefix: '/api' });
 
 // ── SuperAdmin Routes ─────────────────────────────────────────────────────
@@ -175,6 +178,7 @@ const start = async (): Promise<void> => {
     startCampaignSender();
     startDemoExpiryJob();
     startReminderJob();
+    startBillingEnforcement();
   } catch (err) {
     app.log.error(err);
     process.exit(1);
@@ -188,6 +192,7 @@ const stop = async (): Promise<void> => {
   await stopCampaignSender();
   await stopDemoExpiryJob();
   await stopReminderJob();
+  await stopBillingEnforcement();
   await app.close();
 };
 
