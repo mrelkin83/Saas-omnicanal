@@ -86,6 +86,7 @@ collect_config() {
     echo ""
 
     # Intentar leer desde /dev/tty; si falla, pedir que se pase como argumento
+    printf "  Dominio (ej. app.tuempresa.co): " >/dev/tty 2>/dev/null || true
     if read -r DOMAIN </dev/tty 2>/dev/null; then
       DOMAIN="${DOMAIN//$'\r'/}"
     fi
@@ -239,9 +240,11 @@ start_services() {
   dc down -v --remove-orphans 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container|Volume|Network)" || true
 
   info "Construyendo imagen API (puede tardar 10-20 min en primer arranque)..."
-  # Docker invalida el cache automaticamente desde la primera capa que cambio
-  # en el Dockerfile. NO se usa || true: un build fallido debe detener la instalacion.
+  # Un build fallido debe detener la instalacion — sin || true.
   dc build api 2>&1 | tee -a "$LOG_FILE"
+
+  info "Construyendo imagen Web..."
+  dc build web 2>&1 | tee -a "$LOG_FILE"
 
   # Levantar solo postgres y redis primero para garantizar DB limpia antes
   # de que el API intente migrar.
@@ -352,12 +355,17 @@ setup_backups() {
   mkdir -p /opt/scripts /var/backups/postgres
   cp "$INSTALL_DIR/scripts/backup-postgres.sh" /opt/scripts/
   chmod +x /opt/scripts/backup-postgres.sh
+
+  # Detectar ruta exacta de docker para que el cron (PATH minimo) la encuentre
+  local DOCKER_BIN
+  DOCKER_BIN=$(command -v docker 2>/dev/null || echo "/usr/bin/docker")
+
   # grep -v devuelve exit 1 cuando no hay lineas que pasar (crontab vacio),
   # lo que con pipefail mataria el script. El || true lo evita.
   { crontab -l 2>/dev/null | grep -v backup-postgres || true
-    echo "0 2 * * * POSTGRES_USER=saas POSTGRES_DB=saas_omnichannel PG_CONTAINER=\$(docker ps --filter 'ancestor=pgvector/pgvector:pg16' -q | head -1) /opt/scripts/backup-postgres.sh >> /var/log/pg-backup.log 2>&1"
+    echo "0 2 * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin POSTGRES_USER=saas POSTGRES_DB=saas_omnichannel DOCKER_BIN=${DOCKER_BIN} /opt/scripts/backup-postgres.sh >> /var/log/pg-backup.log 2>&1"
   } | crontab - || warn "No se pudo configurar crontab — configura el backup manualmente"
-  log "Backup diario a las 2:00 AM"
+  log "Backup diario a las 2:00 AM (docker: ${DOCKER_BIN})"
 }
 
 # ── Resumen ───────────────────────────────────────────────────────────────────
