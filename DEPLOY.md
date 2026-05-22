@@ -186,16 +186,44 @@ ls -lh /var/backups/postgres/
 
 ## 10. Actualizaciones
 
+### Pre-update: verificar estado actual
+```bash
+# Confirmar que todo está healthy antes de actualizar
+curl -s https://TU_DOMINIO/health | jq .
+
+# Guardar commit actual como punto de rollback
+ROLLBACK=$(git -C /opt/saas rev-parse HEAD)
+echo "Rollback commit: $ROLLBACK"
+```
+
+### Actualizar
 ```bash
 cd /opt/saas
 git pull
 
-# Reconstruir solo lo que cambió
-docker compose -f docker/docker-compose.yml up -d --build api web
+# Reconstruir solo lo que cambió (api y web)
+docker compose -f docker/docker-compose.yml --env-file .env up -d --build api web
+```
 
-# Ver logs
+### Verificar post-update
+```bash
+# Esperar ~30s a que los contenedores pasen el healthcheck
+sleep 30
+curl -s https://TU_DOMINIO/health | jq .
+# Respuesta esperada: { "ok": true, "checks": { "db": { "ok": true }, "redis": { "ok": true } } }
+
+# Ver logs si algo falla
 docker compose -f docker/docker-compose.yml logs -f --tail=50
 ```
+
+### Rollback (si el update falló)
+```bash
+git -C /opt/saas checkout $ROLLBACK
+docker compose -f docker/docker-compose.yml --env-file .env up -d --build api web
+sleep 30 && curl -s https://TU_DOMINIO/health | jq .
+```
+
+> **NUNCA uses `docker compose down -v` en producción** — el flag `-v` elimina los volúmenes de datos (PostgreSQL, Redis). Para detener servicios sin perder datos: `docker compose stop` o `docker compose down` (sin `-v`).
 
 ---
 

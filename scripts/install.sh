@@ -106,6 +106,7 @@ collect_config() {
   JWT_SECRET=$(gen_secret)
   ENCRYPTION_KEY=$(gen_key32)
   EVOLUTION_KEY=$(gen_hex32)
+  REDIS_PASSWORD=$(gen_hex32)
 
   echo ""
   div
@@ -183,6 +184,15 @@ clone_repo() {
 # ── Variables de entorno ──────────────────────────────────────────────────────
 generate_env() {
   header "Generando .env"
+
+  # Idempotencia: si ya existe un .env, preservarlo (evita sobrescribir secretos en produccion)
+  if [[ -f "$INSTALL_DIR/.env" ]]; then
+    warn "Usando .env existente — para regenerar: rm $INSTALL_DIR/.env y vuelve a ejecutar"
+    # shellcheck source=/dev/null
+    source "$INSTALL_DIR/.env" 2>/dev/null || true
+    return
+  fi
+
   cat > "$INSTALL_DIR/.env" << ENVFILE
 # Base de datos
 DATABASE_URL=postgresql://saas:${POSTGRES_PASSWORD}@postgres:5432/saas_omnichannel
@@ -190,7 +200,8 @@ POSTGRES_USER=saas
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 
 # Redis
-REDIS_URL=redis://redis:6379/0
+REDIS_PASSWORD=${REDIS_PASSWORD}
+REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
 
 # Auth
 JWT_SECRET=${JWT_SECRET}

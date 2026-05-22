@@ -1,6 +1,12 @@
+import { Queue, Worker } from 'bullmq';
 import { db, tenants, and, eq, lte, isNull, isNotNull } from '@saas/db';
+import { makeBullMQConnection } from '../lib/redis.js';
 
-let timer: ReturnType<typeof setInterval> | null = null;
+const QUEUE_NAME = 'demo-expiry-job';
+const INTERVAL_MS = 3_600_000; // 1 hora
+
+let queue: Queue | null = null;
+let worker: Worker | null = null;
 
 async function checkExpiredDemos(): Promise<void> {
   try {
@@ -22,11 +28,21 @@ async function checkExpiredDemos(): Promise<void> {
 }
 
 export function startDemoExpiryJob(): void {
-  if (timer) return;
-  void checkExpiredDemos();
-  timer = setInterval(() => { void checkExpiredDemos(); }, 60 * 60 * 1000);
+  queue = new Queue(QUEUE_NAME, { connection: makeBullMQConnection() });
+  queue.add('check', {}, {
+    repeat: { every: INTERVAL_MS },
+    removeOnComplete: 10,
+    removeOnFail: 5,
+  }).catch(() => null);
+  worker = new Worker(QUEUE_NAME, async () => {
+    await checkExpiredDemos();
+  }, { connection: makeBullMQConnection(), concurrency: 1 });
+  worker.on('failed', (job, err) => {
+    console.error('[demo-expiry-job] Job failed', job?.id, err.message);
+  });
 }
 
 export async function stopDemoExpiryJob(): Promise<void> {
-  if (timer) { clearInterval(timer); timer = null; }
+  await worker?.close();
+  await queue?.close();
 }

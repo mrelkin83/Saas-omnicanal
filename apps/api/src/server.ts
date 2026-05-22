@@ -1,5 +1,6 @@
 import './env.js';
-import { runMigrations } from '@saas/db';
+import { runMigrations, db, sql } from '@saas/db';
+import { redis } from './lib/redis.js';
 import Fastify from 'fastify';
 
 // Plugins
@@ -93,11 +94,33 @@ await app.register(authPlugin);
 await app.register(tenantPlugin);
 
 // ── Health ────────────────────────────────────────────────────────────────
-app.get('/health', async () => ({
-  ok: true,
-  timestamp: new Date().toISOString(),
-  version: '0.0.1',
-}));
+app.get('/health', async (_req, reply) => {
+  const checks: Record<string, { ok: boolean; latencyMs?: number }> = {};
+
+  const t0 = Date.now();
+  try {
+    await db.execute(sql`SELECT 1`);
+    checks['db'] = { ok: true, latencyMs: Date.now() - t0 };
+  } catch {
+    checks['db'] = { ok: false };
+  }
+
+  const t1 = Date.now();
+  try {
+    await redis.ping();
+    checks['redis'] = { ok: true, latencyMs: Date.now() - t1 };
+  } catch {
+    checks['redis'] = { ok: false };
+  }
+
+  const ok = Object.values(checks).every((c) => c.ok);
+  return reply.status(ok ? 200 : 503).send({
+    ok,
+    timestamp: new Date().toISOString(),
+    version: '0.0.1',
+    checks,
+  });
+});
 
 // ── API Routes ────────────────────────────────────────────────────────────
 await app.register(async (api) => {

@@ -1,7 +1,13 @@
+import { Queue, Worker } from 'bullmq';
 import { db, appointments, customers, tenants, eq, and, gte, lte, isNull } from '@saas/db';
+import { makeBullMQConnection } from '../lib/redis.js';
 import { sendMessage } from '../modules/channels/core/channel-manager.js';
 
-let timer: ReturnType<typeof setInterval> | null = null;
+const QUEUE_NAME = 'reminder-job';
+const INTERVAL_MS = 3_600_000; // 1 hora
+
+let queue: Queue | null = null;
+let worker: Worker | null = null;
 
 async function sendAppointmentReminders(): Promise<void> {
   try {
@@ -65,11 +71,21 @@ async function sendAppointmentReminders(): Promise<void> {
 }
 
 export function startReminderJob(): void {
-  if (timer) return;
-  void sendAppointmentReminders();
-  timer = setInterval(() => { void sendAppointmentReminders(); }, 60 * 60 * 1000);
+  queue = new Queue(QUEUE_NAME, { connection: makeBullMQConnection() });
+  queue.add('remind', {}, {
+    repeat: { every: INTERVAL_MS },
+    removeOnComplete: 10,
+    removeOnFail: 5,
+  }).catch(() => null);
+  worker = new Worker(QUEUE_NAME, async () => {
+    await sendAppointmentReminders();
+  }, { connection: makeBullMQConnection(), concurrency: 1 });
+  worker.on('failed', (job, err) => {
+    console.error('[reminder-job] Job failed', job?.id, err.message);
+  });
 }
 
 export async function stopReminderJob(): Promise<void> {
-  if (timer) { clearInterval(timer); timer = null; }
+  await worker?.close();
+  await queue?.close();
 }
