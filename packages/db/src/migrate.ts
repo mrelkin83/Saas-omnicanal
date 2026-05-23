@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync, readdirSync } from 'node:fs';
 
+import { randomBytes } from 'node:crypto';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export async function runMigrations(): Promise<void> {
@@ -30,12 +32,7 @@ export async function runMigrations(): Promise<void> {
 
   await migrate(db, { migrationsFolder });
 
-  const appRolePassword = process.env['DB_APP_ROLE_PASSWORD'] ?? (() => {
-    if (process.env['NODE_ENV'] === 'production') {
-      throw new Error('DB_APP_ROLE_PASSWORD is required in production. Set it in your environment.');
-    }
-    return 'saas_dev_password';
-  })();
+  const appRolePassword = process.env['DB_APP_ROLE_PASSWORD'] || randomBytes(24).toString('base64url');
 
   await migrationClient.unsafe(`
     DO $$
