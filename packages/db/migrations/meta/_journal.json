@@ -8,6 +8,27 @@
       "when": 1779062392800,
       "tag": "0000_spicy_sasquatch",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1779062393000,
+      "tag": "0001_extensions_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779062394000,
+      "tag": "0002_app_user",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779062395000,
+      "tag": "0003_billing_auth",
+      "breakpoints": true
     }
   ]
 }
