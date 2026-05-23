@@ -2,25 +2,15 @@
 # Set DOMAIN in .env (e.g. DOMAIN=app.tudominio.co)
 
 {$DOMAIN} {
-  # Web app (Next.js)
-  handle /* {
-    reverse_proxy web:3000
-  }
-
-  # API routes
-  handle /api/* {
-    reverse_proxy api:3001
-  }
-
-  # SSE — inbox tiempo real
-  handle /api/conversations/stream* {
+  # SSE — WhatsApp QR streaming (most specific first)
+  handle /api/channels/whatsapp/stream* {
     reverse_proxy api:3001 {
       flush_interval -1
     }
   }
 
-  # SSE — WhatsApp QR streaming
-  handle /api/channels/whatsapp/stream* {
+  # SSE — inbox tiempo real
+  handle /api/channels/inbox/stream* {
     reverse_proxy api:3001 {
       flush_interval -1
     }
@@ -29,6 +19,16 @@
   # Evolution API webhook (public)
   handle /api/webhooks/evolution* {
     reverse_proxy api:3001
+  }
+
+  # API routes (generic)
+  handle /api/* {
+    reverse_proxy api:3001
+  }
+
+  # Web app (Next.js) — catch-all, MUST be last
+  handle /* {
+    reverse_proxy web:3000
   }
 
   # Security headers
