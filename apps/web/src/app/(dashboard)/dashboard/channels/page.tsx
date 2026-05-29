@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle, XCircle } from 'lucide-react';
+import { CheckCircle, XCircle, MessageCircle, Instagram, Facebook, Music2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api } from '@/lib/api';
@@ -20,11 +20,11 @@ type ModalType = 'whatsapp' | 'instagram' | 'facebook' | 'tiktok' | null;
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
-const CHANNEL_META: Record<ChannelKey, { label: string; icon: string; color: string }> = {
-  whatsapp:  { label: 'WhatsApp Business', icon: '💬', color: '#25D366' },
-  instagram: { label: 'Instagram',         icon: '📸', color: '#E1306C' },
-  facebook:  { label: 'Facebook Messenger',icon: '📘', color: '#1877F2' },
-  tiktok:    { label: 'TikTok',            icon: '🎵', color: '#010101' },
+const CHANNEL_META: Record<ChannelKey, { label: string; icon: React.ElementType<{ className?: string; style?: React.CSSProperties }>; color: string }> = {
+  whatsapp:  { label: 'WhatsApp Business', icon: MessageCircle, color: '#25D366' },
+  instagram: { label: 'Instagram',         icon: Instagram,     color: '#E1306C' },
+  facebook:  { label: 'Facebook Messenger',icon: Facebook,      color: '#1877F2' },
+  tiktok:    { label: 'TikTok',            icon: Music2,        color: '#010101' },
 };
 
 export default function ChannelsPage() {
@@ -208,7 +208,9 @@ export default function ChannelsPage() {
               background: 'var(--bg-surface-1)', display: 'flex', flexDirection: 'column', gap: 14,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 28 }}>{meta.icon}</span>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32 }}>
+                  <meta.icon className="w-7 h-7" style={{ color: meta.color }} />
+                </span>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{meta.label}</div>
                   <div style={{ fontSize: 12, color: connected ? meta.color : 'var(--text-tertiary)', marginTop: 2 }}>
@@ -347,15 +349,26 @@ export default function ChannelsPage() {
             {modal === 'facebook' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Conectar Facebook</h2>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-                  Pega el App State (JSON de cookies) de tu sesión de Facebook Messenger.
-                </p>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-surface-1)', padding: 12, borderRadius: 8, lineHeight: 1.6 }}>
+                  <strong style={{ color: 'var(--text-primary)' }}>Guía paso a paso:</strong>
+                  <ol style={{ paddingLeft: 16, margin: '6px 0 0' }}>
+                    <li>Abre <strong>messenger.com</strong> en Chrome/Edge e inicia sesión.</li>
+                    <li>Presiona <strong>F12</strong> → pestaña <strong>Application</strong> (Aplicación).</li>
+                    <li>En el panel izquierdo, expande <strong>Cookies</strong> → <strong>https://www.messenger.com</strong>.</li>
+                    <li>Haz clic derecho en cualquier cookie → <strong>Clear</strong> no, en su lugar selecciona todas las cookies relevantes (c_user, xs, datr, sb, fr) y cópialas.</li>
+                    <li>Alternativa más sencilla: instala la extensión <strong>&quot;Get cookies.txt&quot;</strong> y exporta como JSON.</li>
+                    <li>Pega el JSON completo en el campo de abajo.</li>
+                  </ol>
+                  <p style={{ margin: '8px 0 0', color: 'var(--accent-warning, #f59e0b)' }}>
+                    ⚠️ Usa una cuenta secundaria. No uses tu cuenta personal principal.
+                  </p>
+                </div>
                 <div>
-                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>App State (JSON)</label>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>App State (JSON de cookies)</label>
                   <textarea
                     value={fbState}
                     onChange={(e) => setFbState(e.target.value)}
-                    placeholder='[{"key":"c_user","value":"...",...}]'
+                    placeholder='[{"key":"c_user","value":"1000...","domain":".facebook.com"}, ...]'
                     rows={6}
                     style={{ ...inp, resize: 'vertical' as const }}
                   />
@@ -375,9 +388,20 @@ export default function ChannelsPage() {
             {modal === 'tiktok' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Conectar TikTok</h2>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-                  Necesitas las cookies de sesión de TikTok y tu nombre de usuario.
-                </p>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-surface-1)', padding: 12, borderRadius: 8, lineHeight: 1.6 }}>
+                  <strong style={{ color: 'var(--text-primary)' }}>Guía paso a paso:</strong>
+                  <ol style={{ paddingLeft: 16, margin: '6px 0 0' }}>
+                    <li>Abre <strong>tiktok.com</strong> en Chrome/Edge e inicia sesión.</li>
+                    <li>Presiona <strong>F12</strong> → pestaña <strong>Application</strong> (Aplicación).</li>
+                    <li>En el panel izquierdo, expande <strong>Cookies</strong> → <strong>https://www.tiktok.com</strong>.</li>
+                    <li>Busca estas cookies clave: <code>sessionid</code>, <code>tt_webid</code>, <code>tt_webid_v2</code>, <code>msToken</code>.</li>
+                    <li>Copia los valores y pega un JSON con formato: <code>{'{"sessionid":"...","tt_webid":"..."}'}</code></li>
+                    <li>También puedes usar la extensión <strong>&quot;Get cookies.txt&quot;</strong> y adaptar el JSON.</li>
+                  </ol>
+                  <p style={{ margin: '8px 0 0', color: 'var(--accent-warning, #f59e0b)' }}>
+                    ⚠️ Usa una cuenta de empresa o secundaria. Las sesiones pueden expirar y requerir renovación manual.
+                  </p>
+                </div>
                 <div>
                   <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Usuario de TikTok</label>
                   <input value={ttUser} onChange={(e) => setTtUser(e.target.value)} placeholder="@miusuario" style={inp} />
@@ -387,7 +411,7 @@ export default function ChannelsPage() {
                   <textarea
                     value={ttCookies}
                     onChange={(e) => setTtCookies(e.target.value)}
-                    placeholder='{"sessionid":"...","tt_webid":"..."}'
+                    placeholder='{"sessionid":"...","tt_webid":"...","tt_webid_v2":"..."}'
                     rows={4}
                     style={{ ...inp, resize: 'vertical' as const }}
                   />

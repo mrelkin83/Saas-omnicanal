@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthStore } from '@/store/auth';
 import { api, type TenantMe } from '@/lib/api';
 import { toast } from '@/hooks/useToast';
 
-const SECTIONS = ['Negocio', 'IA y Agente', 'Pagos', 'Apariencia'] as const;
+const SECTIONS = ['Negocio', 'IA y Agente', 'Pagos', 'Integraciones', 'Apariencia'] as const;
 type Section = typeof SECTIONS[number];
 
 const businessSchema = z.object({
@@ -196,7 +197,7 @@ function AiSection({ tenant, token, onSaved }: { tenant: TenantMe; token: string
   );
 }
 
-function PaymentsSection({ token }: { token: string }) {
+function PaymentsSection({ token, tenantId }: { token: string; tenantId: string }) {
   const [publicKey, setPublicKey] = useState('');
   const [privateKey, setPrivateKey] = useState('');
   const [eventSecret, setEventSecret] = useState('');
@@ -257,7 +258,7 @@ function PaymentsSection({ token }: { token: string }) {
           Wompi procesa Nequi, Daviplata, tarjetas débito/crédito, PSE y más. El cliente elige su método dentro del checkout de Wompi.
           Webhook URL para configurar en Wompi:{' '}
           <code className="text-xs bg-black/20 px-1.5 py-0.5 rounded">
-            {`${process.env.NEXT_PUBLIC_API_URL ?? 'https://tudominio.com'}/api/webhooks/wompi/[tenantId]`}
+            {`${process.env.NEXT_PUBLIC_API_URL ?? 'https://tudominio.com'}/api/webhooks/wompi/${tenantId}`}
           </code>
         </p>
       </div>
@@ -287,6 +288,24 @@ function PaymentsSection({ token }: { token: string }) {
         {ok && <span className="text-sm" style={{ color: 'var(--accent-success)' }}>✓ Guardado</span>}
         {error && <span className="text-sm" style={{ color: 'var(--accent-danger)' }}>{error}</span>}
       </div>
+    </div>
+  );
+}
+
+function IntegrationsSection() {
+  const router = useRouter();
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-text-secondary">
+        Gestiona tus integraciones con proveedores externos: OpenAI, Groq, Wompi, Stripe y más.
+      </p>
+      <button
+        onClick={() => router.push('/dashboard/settings/integrations')}
+        className="px-5 py-2.5 rounded-lg text-sm font-medium text-white"
+        style={{ background: 'var(--accent-primary)' }}
+      >
+        Ir a Integraciones
+      </button>
     </div>
   );
 }
@@ -388,7 +407,8 @@ export default function SettingsPage() {
         <>
           {section === 'Negocio' && <BusinessSection tenant={tenant} token={accessToken!} onSaved={load} />}
           {section === 'IA y Agente' && <AiSection tenant={tenant} token={accessToken!} onSaved={load} />}
-          {section === 'Pagos' && <PaymentsSection token={accessToken!} />}
+          {section === 'Pagos' && <PaymentsSection token={accessToken!} tenantId={tenant.id} />}
+          {section === 'Integraciones' && <IntegrationsSection />}
           {section === 'Apariencia' && <AppearanceSection />}
         </>
       )}

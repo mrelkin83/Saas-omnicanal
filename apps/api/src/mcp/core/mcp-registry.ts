@@ -15,7 +15,11 @@ export function getAllMCPServers(): MCPServer[] {
 }
 
 export function getMCPServersForCapabilities(capabilities: string[]): MCPServer[] {
-  return Array.from(registry.values()).filter((server) =>
-    server.capabilities.length === 0 || server.capabilities.some((cap) => capabilities.includes(cap)),
-  );
+  return Array.from(registry.values()).filter((server) => {
+    // If no capabilities are specified, all servers are available.
+    if (capabilities.length === 0) return true;
+    // Servers with no required capabilities are always available.
+    if (server.capabilities.length === 0) return true;
+    return server.capabilities.some((cap) => capabilities.includes(cap));
+  });
 }

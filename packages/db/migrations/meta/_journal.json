@@ -29,6 +29,13 @@
       "when": 1779062395000,
       "tag": "0003_billing_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780093895544,
+      "tag": "0004_oval_stryfe",
+      "breakpoints": true
     }
   ]
 }

@@ -42,6 +42,11 @@ async function getClientForTenant(tenantId: string): Promise<{ client: OpenAI; m
     const apiKey = cfg['apiKey'] ?? '';
     const baseURL = cfg['baseURL'] as string | undefined;
     const model = cfg['model'] ?? 'gpt-4o-mini';
+    if (!apiKey.trim()) {
+      throw new Error(
+        'La integración LLM está configurada pero falta la API key. Ve a Dashboard → Integraciones y completa tu clave.',
+      );
+    }
     return { client: new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) }), model };
   }
 
