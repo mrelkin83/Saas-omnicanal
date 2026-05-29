@@ -26,6 +26,10 @@ export default function SuperAdminLoginPage() {
       if (!res.ok) { setError('Credenciales inválidas'); return; }
       const { accessToken } = await res.json() as { accessToken: string };
       localStorage.setItem('sa_token', accessToken);
+      // SECURITY WARNING: localStorage is vulnerable to XSS. The primary fix is
+      // inbox sanitization (BUG 2). Move sa_token to an httpOnly cookie when the
+      // backend supports setting it.
+      document.cookie = `sa_token=${accessToken};path=/;max-age=86400`;
       router.push('/superadmin');
     } catch { setError('Error de conexión'); } finally { setLoading(false); }
   };

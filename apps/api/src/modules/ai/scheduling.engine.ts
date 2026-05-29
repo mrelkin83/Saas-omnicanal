@@ -8,6 +8,7 @@ export async function checkSlotAvailable(
   tenantId: string,
   scheduledAt: Date,
   durationMinutes: number,
+  serviceId?: string,
 ): Promise<boolean> {
   const endAt = new Date(scheduledAt.getTime() + durationMinutes * 60_000);
 
@@ -20,6 +21,7 @@ export async function checkSlotAvailable(
         sql`${appointments.status} NOT IN ('cancelled')`,
         sql`${appointments.scheduledAt} < ${endAt.toISOString()}`,
         sql`(${appointments.scheduledAt} + ${appointments.durationMinutes} * interval '1 minute') > ${scheduledAt.toISOString()}`,
+        ...(serviceId ? [eq(appointments.serviceId, serviceId)] : []),
       ),
     )
     .limit(1);
@@ -32,6 +34,7 @@ export async function findAlternativeSlots(
   requestedAt: Date,
   durationMinutes: number,
   count = 3,
+  serviceId?: string,
 ): Promise<Date[]> {
   const alternatives: Date[] = [];
   const searchStart = new Date(requestedAt);
@@ -59,7 +62,7 @@ export async function findAlternativeSlots(
     while (cursor < end && alternatives.length < count) {
       const slotEnd = new Date(cursor.getTime() + durationMinutes * 60_000);
       if (slotEnd <= end) {
-        const available = await checkSlotAvailable(tenantId, cursor, durationMinutes);
+        const available = await checkSlotAvailable(tenantId, cursor, durationMinutes, serviceId);
         if (available) alternatives.push(new Date(cursor));
       }
       cursor = new Date(cursor.getTime() + SLOT_STEP_MINUTES * 60_000);

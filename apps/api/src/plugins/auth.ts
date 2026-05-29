@@ -3,6 +3,7 @@ import fp from 'fastify-plugin';
 import { SignJWT, jwtVerify } from 'jose';
 import { randomUUID } from 'node:crypto';
 import { redis } from '../lib/redis.js';
+import { db, superadminUsers, eq, and } from '@saas/db';
 
 export interface JwtPayload {
   sub: string;
@@ -94,7 +95,18 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
     if (!raw) return;
 
     try {
-      request.user = await fastify.verifyAccessToken(raw);
+      const payload = await fastify.verifyAccessToken(raw);
+      if (payload.isSuperAdmin) {
+        const [saUser] = await db
+          .select()
+          .from(superadminUsers)
+          .where(and(eq(superadminUsers.email, payload.email), eq(superadminUsers.isActive, true)))
+          .limit(1);
+        if (!saUser) {
+          payload.isSuperAdmin = false;
+        }
+      }
+      request.user = payload;
     } catch {
       // Invalid token — request.user stays null; routes that require auth will reject
     }

@@ -4,6 +4,7 @@ import { CheckCircle, XCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 type ChannelKey = 'whatsapp' | 'instagram' | 'facebook' | 'tiktok';
 
@@ -56,7 +57,9 @@ export default function ChannelsPage() {
     try {
       const s = await api.channels.allStatus(accessToken);
       setStatus(s as AllStatus);
-    } catch { /* ignore */ }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error cargando canales');
+    }
   };
 
   useEffect(() => { void loadStatus(); }, [accessToken]);
@@ -126,7 +129,9 @@ export default function ChannelsPage() {
       else if (ch === 'facebook') await api.channels.disconnectFacebook(accessToken, session.id);
       else if (ch === 'tiktok') await api.channels.disconnectTikTok(accessToken, session.id);
       await loadStatus();
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error desconectando canal');
+    } finally { setLoading(false); }
   }
 
   // ── Instagram ─────────────────────────────────────────────────────────────

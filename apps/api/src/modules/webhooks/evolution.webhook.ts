@@ -1,5 +1,6 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { db, channelSessions, eq, and } from '@saas/db';
+import { redis } from '../../lib/redis.js';
 import { pushSSEEvent } from '../channels/core/sse-registry.js';
 import { updateSessionStatus } from '../channels/channels.service.js';
 import { whatsappDriver } from '../channels/drivers/whatsapp/whatsapp.driver.js';
@@ -59,13 +60,21 @@ async function handleMessagesUpsert(instanceName: string, data: Record<string, u
     const remoteJid = msg.key?.remoteJid ?? '';
     if (remoteJid.endsWith('@g.us')) continue;
 
+    const msgId = msg.key?.id ?? '';
+    if (msgId) {
+      const dedupKey = `evo:msg:${msgId}`;
+      const exists = await redis.get(dedupKey);
+      if (exists) continue; // already processed
+      await redis.setex(dedupKey, 86400, '1'); // 24h TTL
+    }
+
     const phone = remoteJid.replace('@s.whatsapp.net', '');
     const text = msg.message?.conversation ?? msg.message?.extendedTextMessage?.text ?? '';
     if (!text.trim()) continue;
 
     try {
       await whatsappDriver.dispatchIncoming({
-        externalId: msg.key?.id ?? '',
+        externalId: msgId,
         tenantId,
         channel: 'whatsapp',
         sessionId: instanceName,

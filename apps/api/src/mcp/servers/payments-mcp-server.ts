@@ -30,7 +30,7 @@ export const paymentsMCPServer: MCPServer = {
           const [order] = await db
             .select()
             .from(orders)
-            .where(and(eq(orders.tenantId, ctx.tenantId), eq(orders.orderNumber, orderNumber)))
+            .where(and(eq(orders.tenantId, ctx.tenantId), eq(orders.orderNumber, orderNumber), eq(orders.customerId, ctx.customerId)))
             .limit(1);
 
           if (!order) return `No encontré el pedido ${orderNumber}.`;
@@ -64,6 +64,7 @@ export const paymentsMCPServer: MCPServer = {
           orderId,
           provider: 'wompi',
           externalId: linkId,
+          reference,
           amount: String(amount),
           currency: 'COP',
           status: 'pending',

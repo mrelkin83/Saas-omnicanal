@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Integration } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 const CATEGORIES = ['llm', 'payment', 'shipping', 'crm', 'erp', 'analytics', 'other'] as const;
 const CATEGORY_LABELS: Record<string, string> = {
@@ -62,7 +63,9 @@ export default function IntegrationsPage() {
         if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
           Object.assign(config, parsed);
         }
-      } catch { /* invalid JSON — skip */ }
+      } catch {
+        toast.error('JSON de configuración inválido');
+      }
     } else {
       for (const [k, v] of Object.entries(configFields)) { if (k !== '__raw' && v.trim()) config[k] = v.trim(); }
     }
@@ -73,7 +76,9 @@ export default function IntegrationsPage() {
       setCustomProvider('');
       setProvider('openai');
       void load();
-    } catch { /* ignore */ } finally { setSaving(false); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error guardando integración');
+    } finally { setSaving(false); }
   };
 
   const deleteIntegration = async (id: string) => {
@@ -208,7 +213,7 @@ export default function IntegrationsPage() {
                   {intg.isPrimary && <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600, background: '#dbeafe', color: '#1d4ed8' }}>Principal</span>}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 4 }}>
-                  {Object.entries(intg.config as Record<string, unknown>).map(([k, v]) => `${k}: ${String(v)}`).join(' · ')}
+                  Configuración oculta por seguridad
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

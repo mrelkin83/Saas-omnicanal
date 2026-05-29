@@ -142,7 +142,7 @@ export const ordersMCPServer: MCPServer = {
           rows = await db
             .select()
             .from(orders)
-            .where(and(eq(orders.tenantId, ctx.tenantId), eq(orders.orderNumber, orderNumber)))
+            .where(and(eq(orders.tenantId, ctx.tenantId), eq(orders.orderNumber, orderNumber), eq(orders.customerId, ctx.customerId)))
             .limit(1);
         } else {
           rows = await db

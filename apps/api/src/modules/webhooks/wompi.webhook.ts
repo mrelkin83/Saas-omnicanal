@@ -54,9 +54,11 @@ export async function wompiWebhookHandler(
 
   const checksum = body.signature?.checksum ?? '';
   const timestamp = String(body.timestamp ?? '');
-  if (checksum && !verifyWompiSignature(rawBody, checksum, timestamp, eventSecret)) {
-    reply.status(401).send({ error: 'Invalid signature' });
-    return;
+  if (!checksum || !eventSecret) {
+    return reply.status(401).send({ error: 'Missing signature' });
+  }
+  if (!verifyWompiSignature(rawBody, checksum, timestamp, eventSecret)) {
+    return reply.status(401).send({ error: 'Invalid signature' });
   }
 
   if (body.event !== 'transaction.updated') {
@@ -70,7 +72,7 @@ export async function wompiWebhookHandler(
   const [payment] = await db
     .select()
     .from(payments)
-    .where(eq(payments.externalId, tx.id))
+    .where(eq(payments.reference, tx.reference))
     .limit(1);
 
   // Reject if payment doesn't belong to this tenant
@@ -81,7 +83,7 @@ export async function wompiWebhookHandler(
 
   await db
     .update(payments)
-    .set({ status, ...(status === 'paid' ? { paidAt: new Date() } : {}) })
+    .set({ status, externalId: tx.id, ...(status === 'paid' ? { paidAt: new Date() } : {}) })
     .where(eq(payments.id, payment.id));
 
   if (payment.orderId) {

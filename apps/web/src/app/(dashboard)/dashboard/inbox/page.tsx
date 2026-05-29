@@ -3,6 +3,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type ConversationSummary, type ConversationDetail, type Message } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -50,8 +60,8 @@ export default function InboxPage() {
         ...(channelFilter !== 'all' ? { channel: channelFilter } : {}),
       });
       setConversations(rows);
-    } catch {
-      // ignore
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error cargando conversaciones');
     } finally {
       setLoadingList(false);
     }
@@ -88,7 +98,9 @@ export default function InboxPage() {
           if (selectedId === payload.conversationId) {
             setDetail((prev) => prev ? { ...prev, messages: [...prev.messages, payload.message] } : prev);
           }
-        } catch { /* ignore malformed */ }
+        } catch {
+          toast.error('Mensaje en tiempo real malformado');
+        }
       });
 
       es.onerror = () => {
@@ -116,8 +128,8 @@ export default function InboxPage() {
       ]);
       setDetail(d);
       setAIState((s.state as AIState) ?? 'IA_ACTIVA');
-    } catch {
-      // ignore
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error cargando conversación');
     } finally {
       setLoadingDetail(false);
     }
@@ -133,7 +145,9 @@ export default function InboxPage() {
     try {
       await api.conversations.setAIState(accessToken, selectedId, next);
       setAIState(next);
-    } catch { /* ignore */ }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error cambiando modo IA');
+    }
   };
 
   const sendMessage = async () => {
@@ -143,7 +157,9 @@ export default function InboxPage() {
       const msg = await api.conversations.sendMessage(accessToken, selectedId, { type: 'text', content: outgoing.trim() });
       setDetail((prev) => prev ? { ...prev, messages: [...prev.messages, msg] } : prev);
       setOutgoing('');
-    } catch { /* ignore */ } finally {
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error enviando mensaje');
+    } finally {
       setSending(false);
     }
   };
@@ -258,7 +274,7 @@ export default function InboxPage() {
                       color: isOutbound ? '#fff' : 'inherit',
                       fontSize: 14, lineHeight: 1.5,
                     }}>
-                      <div>{msg.content}</div>
+                      <div>{msg.content ? escapeHtml(msg.content) : ''}</div>
                       <div style={{ fontSize: 10, opacity: 0.65, marginTop: 4, textAlign: 'right' }}>
                         {new Date(msg.createdAt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
                         {isOutbound && <span style={{ marginLeft: 4 }}>{msg.senderType === 'ai' ? '🤖' : '✓'}</span>}

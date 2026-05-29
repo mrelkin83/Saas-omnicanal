@@ -13,6 +13,10 @@ export async function handleIncomingMessage(msg: NormalizedMessage): Promise<voi
   // Find tenant
   const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
   if (!tenant) return;
+  if (tenant.suspendedAt) {
+    // Silently drop message for suspended tenants
+    return;
+  }
 
   // Find channel session ID
   const [session] = await db
@@ -69,8 +73,16 @@ export async function handleIncomingMessage(msg: NormalizedMessage): Promise<voi
   // Send response via channel
   try {
     await sendMessage(tenantId, channel, msg.from, outgoingMessage);
+    // Save only after successful send
+    const outbound = await saveOutboundMessage(tenantId, conversation.id, customer.id, result.response);
+    // Push AI response to inbox SSE
+    pushInboxEvent(tenantId, 'message', {
+      conversationId: conversation.id,
+      message: outbound,
+      customer: { id: customer.id, displayName: customer.displayName ?? from, phone: customer.phone },
+    });
   } catch {
-    // Channel might not be able to send (TikTok, etc.) — still save the message
+    console.error(`Failed to send message to ${msg.from}`);
   }
 
   // Notify owner if AI failed to process the message
@@ -79,13 +91,4 @@ export async function handleIncomingMessage(msg: NormalizedMessage): Promise<voi
     const alert = `⚠️ Falla del asistente IA\nCliente: ${customerName}\nMensaje: "${text.slice(0, 100)}"\nEl cliente recibió un mensaje de fallback.`;
     sendMessage(tenantId, 'whatsapp', tenant.phone, { type: 'text', text: alert }).catch(() => undefined);
   }
-
-  const outbound = await saveOutboundMessage(tenantId, conversation.id, customer.id, result.response);
-
-  // Push AI response to inbox SSE
-  pushInboxEvent(tenantId, 'message', {
-    conversationId: conversation.id,
-    message: outbound,
-    customer: { id: customer.id, displayName: customer.displayName ?? from, phone: customer.phone },
-  });
 }

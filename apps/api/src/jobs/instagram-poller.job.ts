@@ -1,5 +1,5 @@
 import { Queue, Worker } from 'bullmq';
-import { db, channelSessions, eq, and } from '@saas/db';
+import { db, channelSessions, tenants, eq, and, isNull } from '@saas/db';
 import { makeBullMQConnection } from '../lib/redis.js';
 import { instagramDriver } from '../modules/channels/drivers/instagram/instagram.driver.js';
 import { handleIncomingMessage } from '../modules/channels/core/incoming-handler.js';
@@ -26,7 +26,8 @@ export function startInstagramPoller(): void {
       const sessions = await db
         .select({ tenantId: channelSessions.tenantId, externalId: channelSessions.externalId })
         .from(channelSessions)
-        .where(and(eq(channelSessions.channel, 'instagram'), eq(channelSessions.status, 'connected')));
+        .innerJoin(tenants, eq(channelSessions.tenantId, tenants.id))
+        .where(and(eq(channelSessions.channel, 'instagram'), eq(channelSessions.status, 'connected'), isNull(tenants.suspendedAt)));
 
       for (const session of sessions) {
         await instagramDriver.pollAndDispatch(session.externalId ?? session.tenantId);

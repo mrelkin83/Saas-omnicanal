@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { db, customers, messages, conversations, eq, and, desc, sql } from '@saas/db';
+import { db, customers, messages, conversations, eq, and, desc, inArray } from '@saas/db';
 import type { MCPServer } from '../core/mcp-server.interface.js';
 
 export const customerMCPServer: MCPServer = {
@@ -49,7 +49,7 @@ export const customerMCPServer: MCPServer = {
 
         if (Object.keys(updates).length === 0) return 'No se indicaron datos para actualizar.';
 
-        await db.update(customers).set(updates).where(eq(customers.id, ctx.customerId));
+        await db.update(customers).set(updates).where(and(eq(customers.id, ctx.customerId), eq(customers.tenantId, ctx.tenantId)));
         return '✅ Tu perfil ha sido actualizado.';
       },
     },
@@ -77,7 +77,7 @@ export const customerMCPServer: MCPServer = {
           .where(
             and(
               eq(messages.tenantId, ctx.tenantId),
-              sql`${messages.conversationId} IN (${convs.map((c) => `'${c.id}'`).join(',')})`,
+              inArray(messages.conversationId, convs.map((c) => c.id)),
             ),
           )
           .orderBy(desc(messages.createdAt))

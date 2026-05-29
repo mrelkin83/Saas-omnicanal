@@ -1,7 +1,7 @@
 import { Queue, Worker } from 'bullmq';
-import { db, campaigns, campaignLogs, contactListEntries, channelSessions, eq, and } from '@saas/db';
+import { db, campaigns, campaignLogs, contactListEntries, channelSessions, tenants, eq, and, isNull } from '@saas/db';
 import { makeBullMQConnection } from '../lib/redis.js';
-import * as evo from '../lib/evolution-api.client.js';
+import { sendMessage } from '../modules/channels/core/channel-manager.js';
 
 const QUEUE_NAME = 'campaign-sender';
 
@@ -34,6 +34,12 @@ async function runCampaign(campaignId: string, tenantId: string): Promise<void> 
   const [campaign] = await db.select().from(campaigns).where(and(eq(campaigns.id, campaignId), eq(campaigns.tenantId, tenantId)));
   if (!campaign || campaign.status === 'cancelled' || campaign.status === 'done') return;
 
+  const [tenant] = await db.select().from(tenants).where(and(eq(tenants.id, tenantId), isNull(tenants.suspendedAt)));
+  if (!tenant) {
+    await db.update(campaigns).set({ status: 'cancelled', updatedAt: new Date() }).where(eq(campaigns.id, campaignId));
+    return;
+  }
+
   await db.update(campaigns).set({ status: 'running', updatedAt: new Date() }).where(eq(campaigns.id, campaignId));
 
   const [session] = campaign.channelSessionId
@@ -44,8 +50,6 @@ async function runCampaign(campaignId: string, tenantId: string): Promise<void> 
     await db.update(campaigns).set({ status: 'cancelled', updatedAt: new Date() }).where(eq(campaigns.id, campaignId));
     return;
   }
-
-  const instanceName = session.externalId;
   const messages = campaign.messages as { text: string }[];
   const contacts = await db.select().from(contactListEntries).where(eq(contactListEntries.listId, campaign.listId));
 
@@ -76,9 +80,9 @@ async function runCampaign(campaignId: string, tenantId: string): Promise<void> 
     try {
       if (campaign.mediaUrl) {
         const mediaType = (campaign.mediaType ?? 'image') as 'image' | 'video' | 'document';
-        await evo.sendMedia(instanceName, jid, campaign.mediaUrl, mediaType, text);
+        await sendMessage(tenantId, 'whatsapp', jid, { type: 'media', mediaType, url: campaign.mediaUrl, caption: text });
       } else {
-        await evo.sendText(instanceName, jid, text);
+        await sendMessage(tenantId, 'whatsapp', jid, { type: 'text', text });
       }
       await db.update(campaignLogs).set({ status: 'sent', sentAt: new Date() }).where(eq(campaignLogs.id, logRow!.id));
       sent++;

@@ -12,6 +12,7 @@ export const payments = pgTable('payments', {
   customerId: uuid('customer_id').notNull().references(() => customers.id),
   provider: varchar('provider', { length: 20 }).default('wompi'),
   externalId: varchar('external_id', { length: 255 }),
+  reference: varchar('reference', { length: 255 }),
   amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
   currency: varchar('currency', { length: 3 }).default('COP'),
   status: varchar('status', { length: 20 }).default('pending'),

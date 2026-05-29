@@ -74,13 +74,13 @@ export const appointmentsMCPServer: MCPServer = {
         if (isNaN(scheduledAt.getTime())) return 'La fecha/hora no es válida.';
 
         const duration = service.durationMinutes ?? 60;
-        const available = await checkSlotAvailable(ctx.tenantId, scheduledAt, duration);
+        const available = await checkSlotAvailable(ctx.tenantId, scheduledAt, duration, service.id);
 
         if (available) {
           return `✅ El horario ${fmtDate(scheduledAt)} está disponible para ${service.name}.`;
         }
 
-        const alternatives = await findAlternativeSlots(ctx.tenantId, scheduledAt, duration, 3);
+        const alternatives = await findAlternativeSlots(ctx.tenantId, scheduledAt, duration, 3, service.id);
         if (alternatives.length === 0) {
           return `❌ El horario no está disponible y no hay alternativas cercanas.`;
         }
@@ -112,10 +112,17 @@ export const appointmentsMCPServer: MCPServer = {
         if (isNaN(scheduledAt.getTime())) return 'La fecha/hora no es válida.';
 
         const duration = service.durationMinutes ?? 60;
-        const available = await checkSlotAvailable(ctx.tenantId, scheduledAt, duration);
+        const available = await checkSlotAvailable(ctx.tenantId, scheduledAt, duration, service.id);
         if (!available) {
           return 'Ese horario ya no está disponible. Por favor elige otro horario.';
         }
+
+        // Re-check availability immediately before insert to shrink the race window
+        const stillAvailable = await checkSlotAvailable(ctx.tenantId, scheduledAt, duration, service.id);
+        if (!stillAvailable) {
+          return 'Ese horario ya no está disponible. Por favor elige otro horario.';
+        }
+        // NOTE: A DB unique constraint on (tenant_id, provider_id, scheduled_at) is still needed to fully prevent double-booking.
 
         const [appointment] = await db
           .insert(appointments)

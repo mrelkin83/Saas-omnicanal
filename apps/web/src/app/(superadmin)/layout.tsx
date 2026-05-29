@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Building2, CreditCard, FlaskConical, Handshake,
   Monitor, Search, LogOut, Crown, Menu, X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const SA_NAV = [
   { href: '/superadmin', label: 'Dashboard', icon: LayoutDashboard },
@@ -26,8 +26,19 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
 
   const handleLogout = () => {
     localStorage.removeItem('sa_token');
+    // Clear the cookie used by middleware for superadmin route protection
+    document.cookie = 'sa_token=;path=/;max-age=0';
     router.push('/superadmin/login');
   };
+
+  useEffect(() => {
+    // SECURITY WARNING: sa_token is stored in localStorage (XSS vulnerable).
+    // The primary defense is inbox XSS sanitization (BUG 2). Move to httpOnly
+    // cookie when backend supports it.
+    if (!localStorage.getItem('sa_token')) {
+      router.push('/superadmin/login');
+    }
+  }, [router]);
 
   if (pathname === '/superadmin/login') return <>{children}</>;
 

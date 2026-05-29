@@ -64,7 +64,7 @@ export const reservationsMCPServer: MCPServer = {
       execute: async (params, ctx) => {
         const reservationId = params.reservationId as string | undefined;
         if (reservationId) {
-          await db.update(reservations).set({ status: 'cancelled' }).where(eq(reservations.id, reservationId));
+          await db.update(reservations).set({ status: 'cancelled' }).where(and(eq(reservations.id, reservationId), eq(reservations.tenantId, ctx.tenantId), eq(reservations.customerId, ctx.customerId)));
           return '✅ Reserva cancelada.';
         }
 

@@ -91,7 +91,7 @@ export function verifyWompiSignature(
   timestamp: string,
   eventSecret: string,
 ): boolean {
-  if (!eventSecret) return true;
+  if (!eventSecret) return false;
   const toSign = `${payload}${timestamp}${eventSecret}`;
   const expected = createHmac('sha256', eventSecret).update(toSign).digest('hex');
   return expected === checksum;
