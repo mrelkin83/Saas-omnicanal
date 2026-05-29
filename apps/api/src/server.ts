@@ -8,6 +8,7 @@ import errorHandlerPlugin from './plugins/error-handler.js';
 import corsPlugin from './plugins/cors.js';
 import swaggerPlugin from './plugins/swagger.js';
 import rateLimitPlugin from './plugins/rate-limit.js';
+import helmetPlugin from './plugins/helmet.js';
 import authPlugin from './plugins/auth.js';
 import tenantPlugin from './plugins/tenant.js';
 
@@ -93,6 +94,7 @@ registerAllMCPServers();
 // ── Plugins (order matters) ────────────────────────────────────────────────
 await app.register((await import('@fastify/multipart')).default, { limits: { fileSize: 10 * 1024 * 1024 } });
 await app.register(errorHandlerPlugin);
+await app.register(helmetPlugin);
 await app.register(corsPlugin);
 await app.register(swaggerPlugin);
 await app.register(rateLimitPlugin);

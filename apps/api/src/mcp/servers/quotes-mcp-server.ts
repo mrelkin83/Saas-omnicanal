@@ -25,7 +25,7 @@ export const quotesMCPServer: MCPServer = {
       }),
       execute: async (params, ctx) => {
         const items = params.items as Array<{ description: string; quantity: number; unitPrice: number }>;
-        const subtotal = items.reduce((sum: number, item: { unitPrice: number; quantity: number }) => sum + item.unitPrice * item.quantity, 0);
+        const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
         const quoteNumber = `COT-${Date.now().toString(36).toUpperCase()}`;
 
         const [quote] = await db
@@ -34,7 +34,7 @@ export const quotesMCPServer: MCPServer = {
             tenantId: ctx.tenantId,
             customerId: ctx.customerId,
             quoteNumber,
-            items: items as unknown as string,
+            items,
             subtotal: String(subtotal),
             total: String(subtotal),
             status: 'pending',
@@ -44,7 +44,7 @@ export const quotesMCPServer: MCPServer = {
 
         if (!quote) return 'Error creando la cotización.';
 
-        const lines = items.map((i: { quantity: number; description: string; unitPrice: number }) => `• ${i.quantity}x ${i.description} — ${fmtCop(i.unitPrice * i.quantity)}`);
+        const lines = items.map((i) => `• ${i.quantity}x ${i.description} — ${fmtCop(i.unitPrice * i.quantity)}`);
         return `📄 Cotización ${quoteNumber}\n\n${params.notes}\n\n${lines.join('\n')}\n\n*Total: ${fmtCop(subtotal)}*\nVálida por 7 días.`;
       },
     },

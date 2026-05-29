@@ -16,8 +16,7 @@ export function startBillingEnforcement(): void {
     removeOnFail: 5,
   }).catch(() => null);
   worker = new Worker(QUEUE_NAME, async () => {
-    const count = await checkAndSuspendExpiredSubscriptions();
-    if (count > 0) console.log(`[billing-enforcement] Suspended ${count} expired subscriptions`);
+    await checkAndSuspendExpiredSubscriptions();
   }, { connection: makeBullMQConnection(), concurrency: 1 });
   worker.on('failed', (job, err) => {
     console.error('[billing-enforcement] Job failed', job?.id, err.message);

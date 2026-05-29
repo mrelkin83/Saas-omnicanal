@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from '@/hooks/useToast';
 
 interface Plan {
   id: string; name: string; slug: string; priceCop: string;
@@ -39,7 +40,7 @@ export default function SuperAdminPlansPage() {
         body: JSON.stringify({ name: form.name, slug: form.slug, priceCop: parseFloat(form.priceCop), billingCycle: form.billingCycle, limits, features }),
       });
       if (res.ok) { setShowCreate(false); void load(); }
-    } catch { /* ignore */ } finally { setSaving(false); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setSaving(false); }
   };
 
   const deletePlan = async (id: string) => {

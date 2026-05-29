@@ -2,6 +2,7 @@ import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 import { SignJWT, jwtVerify } from 'jose';
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import { redis } from '../lib/redis.js';
 import { db, superadminUsers, eq, and } from '@saas/db';
 
@@ -26,6 +27,14 @@ declare module 'fastify' {
 }
 
 const REFRESH_TTL = 7 * 24 * 60 * 60; // 7 days in seconds
+
+const jwtPayloadSchema = z.object({
+  sub: z.string(),
+  tenantId: z.string(),
+  role: z.enum(['owner', 'admin', 'agent']),
+  email: z.string().email(),
+  isSuperAdmin: z.boolean().optional(),
+});
 
 function getSecret(): Uint8Array {
   const secret = process.env['JWT_SECRET'];
@@ -64,7 +73,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
 
   fastify.decorate('verifyAccessToken', async (token: string): Promise<JwtPayload> => {
     const { payload } = await jwtVerify(token, getSecret());
-    return payload as unknown as JwtPayload;
+    return jwtPayloadSchema.parse(payload);
   });
 
   fastify.decorate('invalidateRefreshToken', async (refreshToken: string) => {

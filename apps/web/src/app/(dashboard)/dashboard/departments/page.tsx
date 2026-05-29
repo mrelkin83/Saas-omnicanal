@@ -4,6 +4,7 @@ import { Building2 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Department, type User } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 const STATUS_COLORS: Record<string, string> = {
   available: '#22c55e', busy: '#f59e0b', away: '#6366f1', offline: '#9ca3af',
@@ -55,7 +56,7 @@ export default function DepartmentsPage() {
       await api.departments.create(accessToken, { name: newName.trim(), description: newDesc.trim() || undefined });
       setNewName(''); setNewDesc(''); setShowCreate(false);
       void load();
-    } catch { /* ignore */ } finally { setSaving(false); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setSaving(false); }
   };
 
   const deleteDept = async (id: string) => {

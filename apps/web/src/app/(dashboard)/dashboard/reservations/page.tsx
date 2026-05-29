@@ -4,6 +4,7 @@ import { Calendar } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Reservation } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pendiente', confirmed: 'Confirmada', cancelled: 'Cancelada', completed: 'Completada',
@@ -32,7 +33,7 @@ export default function ReservationsPage() {
     try {
       const updated = await api.reservations.patch(accessToken, id, { status });
       setReservations((prev) => prev.map((r) => r.id === id ? { ...r, ...updated } : r));
-    } catch { /* ignore */ } finally { setUpdating(null); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setUpdating(null); }
   };
 
   const statuses = ['all', 'pending', 'confirmed', 'cancelled', 'completed'];

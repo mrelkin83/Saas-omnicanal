@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Crown } from 'lucide-react';
 import { Button } from '@/components/ui';
+import { toast } from '@/hooks/useToast';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -31,7 +32,7 @@ export default function SuperAdminLoginPage() {
       // backend supports setting it.
       document.cookie = `sa_token=${accessToken};path=/;max-age=86400`;
       router.push('/superadmin');
-    } catch { setError('Error de conexión'); } finally { setLoading(false); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error de conexión'); setError('Error de conexión'); } finally { setLoading(false); }
   };
 
   return (

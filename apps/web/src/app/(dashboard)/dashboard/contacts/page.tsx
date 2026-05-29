@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type ContactList, type ContactEntry } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 export default function ContactsPage() {
   const { accessToken } = useAuthStore();
@@ -53,7 +54,7 @@ export default function ContactsPage() {
       setImportResult(result);
       void load();
       void loadEntries(selected);
-    } catch { /* ignore */ } finally { setImporting(false); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setImporting(false); }
   };
 
   return (

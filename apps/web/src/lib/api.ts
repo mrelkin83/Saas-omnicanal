@@ -61,10 +61,11 @@ async function request<T>(
 
   if (res.status === 204) return undefined as T;
 
-  const data = await res.json() as unknown;
+  const data = (await res.json()) as Record<string, unknown>;
   if (!res.ok) {
-    const err = data as { code?: string; message?: string };
-    throw new ApiError(res.status, err.code ?? 'UNKNOWN', err.message ?? 'Error desconocido');
+    const code = typeof data.code === 'string' ? data.code : 'UNKNOWN';
+    const message = typeof data.message === 'string' ? data.message : 'Error desconocido';
+    throw new ApiError(res.status, code, message);
   }
   return data as T;
 }

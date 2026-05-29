@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from '@/hooks/useToast';
 
 interface Reseller {
   id: string; name: string; company: string | null; email: string;
@@ -37,7 +38,7 @@ export default function SuperAdminResellersPage() {
         body: JSON.stringify({ ...form, commissionPct: parseFloat(form.commissionPct) }),
       });
       if (res.ok) { setShowCreate(false); void load(); }
-    } catch { /* ignore */ } finally { setSaving(false); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setSaving(false); }
   };
 
   const deleteReseller = async (id: string) => {

@@ -43,10 +43,8 @@ class TikTokDriver implements IChannelDriver {
     return session ? { status: 'connected', displayName: session.username } : { status: 'disconnected' };
   }
 
-  async sendMessage(_sessionId: string, _to: string, message: OutgoingMessage): Promise<SendResult> {
-    // TikTok comment replies are extremely limited; log for manual follow-up
-    const text = message.type === 'text' ? message.text : '[Mensaje interactivo no soportado en TikTok]';
-    console.log(`[TikTok] Would reply: ${text.slice(0, 100)}`);
+  async sendMessage(_sessionId: string, _to: string, _message: OutgoingMessage): Promise<SendResult> {
+    // TikTok comment replies are not automated; mark as sent for tracking
     return { externalId: `tt-${Date.now()}` };
   }
 

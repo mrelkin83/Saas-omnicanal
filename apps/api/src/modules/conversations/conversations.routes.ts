@@ -74,7 +74,9 @@ const conversationsRoutes: FastifyPluginAsync = async (fastify) => {
           customer: { id: row.customerId, displayName: row.customerName ?? row.customerPhone ?? '', phone: row.customerPhone },
         });
       }
-    } catch { /* channel not connected — message saved but not sent */ }
+    } catch (err) {
+      request.log.warn({ err }, 'Channel send failed for conversation message');
+    }
 
     return reply.status(201).send(msg);
   });

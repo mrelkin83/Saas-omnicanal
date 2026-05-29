@@ -100,7 +100,7 @@ const integrationsRoutes: FastifyPluginAsync = async (fastify) => {
       })
       .returning();
 
-    return reply.status(201).send({ ...integration, config: maskSensitive(integration!.config as Record<string, unknown>) });
+    return reply.status(201).send({ ...integration, config: maskSensitive((integration?.config ?? {}) as Record<string, unknown>) });
   });
 
   fastify.patch('/:id', { preHandler: [requireAuth('admin')] }, async (request, reply) => {

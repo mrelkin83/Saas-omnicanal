@@ -7,6 +7,17 @@ import { redis } from '../../lib/redis.js';
 const CACHE_KEY = 'superadmin:monitor:health';
 const CACHE_TTL = 10;
 
+interface MonitorHealth {
+  cpu: number;
+  ram: { totalMb: number; usedMb: number; freeMb: number; percent: number };
+  disk: { totalGb: number; usedGb: number; freeGb: number; percent: number } | null;
+  uptime: number;
+  nodeVersion: string;
+  platform: string;
+  cores: number;
+  timestamp: string;
+}
+
 function getCpuPercent(): number {
   const [load1m] = os.loadavg();
   const cores = os.cpus().length;
@@ -43,7 +54,7 @@ function getDiskStats(): Promise<{ totalGb: number; usedGb: number; freeGb: numb
 const superadminMonitorRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/health', { preHandler: [requireSuperAdmin] }, async () => {
     const cached = await redis.get(CACHE_KEY);
-    if (cached) return JSON.parse(cached) as unknown;
+    if (cached) return JSON.parse(cached) as MonitorHealth;
 
     const data = {
       cpu: getCpuPercent(),

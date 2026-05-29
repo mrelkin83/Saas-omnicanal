@@ -68,7 +68,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         ...tokens,
       });
     } catch (err) {
-      if (typeof err === 'object' && err !== null && 'code' in err && (err as any).code === '23505') {
+      const pgError = err as { code?: string; message?: string } | undefined;
+      if (pgError?.code === '23505') {
         return reply.status(409).send({ error: 'Conflict', message: 'El email o slug ya existe', code: 'CONFLICT' });
       }
       throw err;

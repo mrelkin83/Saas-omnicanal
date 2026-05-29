@@ -1,4 +1,4 @@
-import { db, subscriptions, tenants, saasPlans, users, conversations, eq, and, sql, count } from '@saas/db';
+import { db, subscriptions, tenants, saasPlans, users, conversations, campaigns, eq, and, sql, count } from '@saas/db';
 
 interface PlanLimits {
   maxTeamMembers?: number;
@@ -56,6 +56,24 @@ export async function enforceConversationLimit(tenantId: string): Promise<boolea
     .where(and(eq(conversations.tenantId, tenantId), sql`${conversations.createdAt} >= ${periodStart}`));
 
   return (row?.count ?? 0) < maxConv;
+}
+
+export async function enforceCampaignLimit(tenantId: string): Promise<boolean> {
+  const sub = await getActiveSubscription(tenantId);
+  if (!sub) return true;
+
+  const limits = sub.planLimits as PlanLimits | null;
+  const maxCamp = limits?.maxCampaignsPerMonth;
+  if (!maxCamp) return true;
+
+  const periodStart = new Date();
+  periodStart.setDate(1);
+  periodStart.setHours(0, 0, 0, 0);
+
+  const [row] = await db.select({ count: count() }).from(campaigns)
+    .where(and(eq(campaigns.tenantId, tenantId), sql`${campaigns.createdAt} >= ${periodStart}`));
+
+  return (row?.count ?? 0) < maxCamp;
 }
 
 export async function getTenantCapabilities(tenantId: string): Promise<string[]> {

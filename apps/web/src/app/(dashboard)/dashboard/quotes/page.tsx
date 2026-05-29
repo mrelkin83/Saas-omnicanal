@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Quote } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pendiente', sent: 'Enviada', accepted: 'Aceptada', rejected: 'Rechazada',
@@ -28,7 +29,7 @@ export default function QuotesPage() {
     try {
       const updated = await api.quotes.patch(accessToken, id, { status });
       setQuotes((prev) => prev.map((q) => q.id === id ? { ...q, ...updated } : q));
-    } catch { /* ignore */ } finally { setUpdating(null); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setUpdating(null); }
   };
 
   const fmt = (amount: string) => Number(amount) > 0

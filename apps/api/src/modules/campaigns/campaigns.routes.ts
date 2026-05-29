@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from '../../middleware/require-auth.js';
 import { db, campaigns, campaignLogs, contactLists, eq, and, desc } from '@saas/db';
 import { scheduleCampaign } from '../../jobs/campaign-sender.job.js';
+import { enforceCampaignLimit } from '../../modules/billing/billing.service.js';
 
 const messageSchema = z.object({ text: z.string().min(1) });
 
@@ -48,6 +49,11 @@ const campaignsRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/', { preHandler: [requireAuth('admin')] }, async (request, reply) => {
     const tenantId = request.user!.tenantId;
     const data = createCampaignSchema.parse(request.body);
+
+    const withinLimit = await enforceCampaignLimit(tenantId);
+    if (!withinLimit) {
+      return reply.status(429).send({ error: 'Too Many Requests', message: 'Has alcanzado el límite de campañas mensuales de tu plan', code: 'CAMPAIGN_LIMIT_EXCEEDED' });
+    }
 
     const [list] = await db.select({ id: contactLists.id, contactCount: contactLists.contactCount }).from(contactLists).where(and(eq(contactLists.id, data.listId), eq(contactLists.tenantId, tenantId)));
     if (!list) return reply.status(404).send({ error: 'Not Found', message: 'Lista de contactos no encontrada', code: 'NOT_FOUND' });

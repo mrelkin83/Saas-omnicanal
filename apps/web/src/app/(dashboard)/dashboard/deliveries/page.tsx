@@ -4,6 +4,7 @@ import { Bike } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Delivery } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pendiente', picked_up: 'Recogido', in_transit: 'En tránsito',
@@ -34,7 +35,7 @@ export default function DeliveriesPage() {
     try {
       const updated = await api.deliveries.patch(accessToken, id, { status });
       setDeliveries((prev) => prev.map((d) => d.id === id ? { ...d, ...updated } : d));
-    } catch { /* ignore */ } finally { setUpdating(null); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setUpdating(null); }
   };
 
   const statuses = ['all', 'pending', 'picked_up', 'in_transit', 'delivered', 'failed'];

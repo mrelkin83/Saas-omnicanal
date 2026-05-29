@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, decimal, integer, jsonb, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, decimal, integer, jsonb, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants.js';
 import { customers } from './customers.js';
 import { products } from './products.js';
@@ -47,6 +47,9 @@ export const orders = pgTable('orders', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('orders_tenant_number_idx').on(t.tenantId, t.orderNumber),
+  index('idx_orders_tenant_status').on(t.tenantId, t.status),
+  index('idx_orders_tenant_customer').on(t.tenantId, t.customerId),
+  index('idx_orders_tenant_created').on(t.tenantId, t.createdAt),
 ]);
 
 export const orderItems = pgTable('order_items', {

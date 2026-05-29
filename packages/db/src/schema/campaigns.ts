@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, timestamp, integer, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, timestamp, integer, jsonb, index } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants.js';
 import { customers } from './customers.js';
 import { channelSessions } from './channels.js';
@@ -46,7 +46,9 @@ export const campaigns = pgTable('campaigns', {
   failedCount: integer('failed_count').default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  index('idx_campaigns_tenant_status').on(t.tenantId, t.status),
+]);
 
 export const campaignLogs = pgTable('campaign_logs', {
   id: uuid('id').primaryKey().defaultRandom(),

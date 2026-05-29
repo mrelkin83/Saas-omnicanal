@@ -28,7 +28,8 @@ export const knowledgeMCPServer: MCPServer = {
             LIMIT 3
           `);
 
-          const results = rows as unknown as Array<{ question: string; answer: string; distance: number }>;
+          interface KnowledgeResult { question: string; answer: string; distance: number }
+          const results = Array.isArray(rows) ? (rows as unknown as KnowledgeResult[]) : [];
           const relevant = results.filter((r) => r.distance < 0.6);
 
           if (relevant.length === 0) return 'No encontré información específica sobre eso en nuestra base de conocimiento.';

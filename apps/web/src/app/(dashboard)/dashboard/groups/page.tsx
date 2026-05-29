@@ -4,6 +4,7 @@ import { Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type WaGroup } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 export default function GroupsPage() {
   const { accessToken } = useAuthStore();
@@ -31,7 +32,7 @@ export default function GroupsPage() {
       const g = await api.groups.create(accessToken, { subject: subject.trim(), participants: phones });
       setGroups((prev) => [...prev, { id: g.groupJid, subject: subject.trim(), size: phones.length + 1 }]);
       setShowCreate(false); setSubject(''); setParticipants('');
-    } catch { /* ignore */ } finally { setSaving(false); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setSaving(false); }
   };
 
   return (

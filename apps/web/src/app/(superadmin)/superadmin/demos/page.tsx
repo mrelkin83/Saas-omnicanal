@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { BUSINESS_TYPES as BT } from '@saas/shared';
+import { toast } from '@/hooks/useToast';
 
 const BUSINESS_TYPE_OPTIONS = Object.entries(BT).map(([value, cfg]) => ({ value, label: `${cfg.icon} ${cfg.label}` }));
 
@@ -45,7 +46,7 @@ export default function SuperAdminDemosPage() {
         setShowCreate(false);
         void load();
       }
-    } catch { /* ignore */ } finally { setSaving(false); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setSaving(false); }
   };
 
   const deleteDemo = async (id: string) => {

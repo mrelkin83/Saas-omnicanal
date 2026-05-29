@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/auth';
 import { api } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 const CAPABILITIES = [
   { id: 'VER_CATALOGO',  label: 'Mostrar catálogo / precios',   desc: 'El agente puede mostrar productos y precios al cliente' },
@@ -55,7 +56,7 @@ export default function OnboardingWizard({ onComplete }: Props) {
       // Note: capabilities field is managed via tenant config — we store it in a free-form way
       localStorage.setItem(`onboarding_done_${user.tenantId}`, '1');
       onComplete();
-    } catch { /* ignore, let them in anyway */ } finally { setSaving(false); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setSaving(false); }
   };
 
   const skip = () => {

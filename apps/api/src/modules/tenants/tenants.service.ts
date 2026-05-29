@@ -46,7 +46,7 @@ export async function getConfig(tenantId: string, key: string): Promise<{ key: s
   const cacheKey = configCacheKey(tenantId, key);
   const cached = await redis.get(cacheKey);
   if (cached !== null) {
-    return { key, value: JSON.parse(cached) as unknown };
+    return { key, value: JSON.parse(cached) };
   }
 
   const [row] = await db

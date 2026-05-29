@@ -39,7 +39,9 @@ const channelsRoutes: FastifyPluginAsync = async (fastify) => {
         try {
           const qr = await evo.getQR(result.sessionId);
           if (qr.base64) { qrCode = qr.base64; break; }
-        } catch { /* not ready yet */ }
+        } catch (err) {
+          request.log.debug({ err }, 'QR not ready yet');
+        }
       }
     }
 

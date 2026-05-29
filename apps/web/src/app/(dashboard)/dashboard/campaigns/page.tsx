@@ -4,6 +4,7 @@ import { Users } from 'lucide-react';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Campaign, type ContactList, type WaGroup, type CampaignLog } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 interface ContactEntry { id: string; phone: string; name: string | null; }
 
@@ -109,7 +110,7 @@ export default function CampaignsPage() {
       setShowCreate(false);
       setForm({ name: '', listId: '', messages: [''], scheduledAt: '', mediaUrl: '', mediaType: 'image', recurrence: 'once' });
       void loadCampaigns();
-    } catch { /* ignore */ } finally { setSaving(false); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setSaving(false); }
   };
 
   const launchCampaign = async (id: string) => {

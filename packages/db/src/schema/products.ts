@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, timestamp, decimal, integer, jsonb } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, timestamp, decimal, integer, jsonb, index } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants.js';
 import { categories } from './categories.js';
 
@@ -20,7 +20,11 @@ export const products = pgTable('products', {
   isActive: boolean('is_active').default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  index('idx_products_tenant_active').on(t.tenantId, t.isActive),
+  index('idx_products_tenant_category').on(t.tenantId, t.categoryId),
+  index('idx_products_tenant_type').on(t.tenantId, t.type),
+]);
 
 export const productVariants = pgTable('product_variants', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -4,6 +4,7 @@ import { Brain, CheckCircle } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type KnowledgeEntry, type UnansweredQuery } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 const CATEGORIES = ['general', 'precios', 'horarios', 'productos', 'servicios', 'pagos', 'envios', 'garantias', 'otro'];
 
@@ -63,7 +64,7 @@ export default function AITrainingPage() {
       setForm({ question: '', answer: '', category: 'general', keywords: '' });
       setShowForm(false);
       void loadEntries();
-    } catch { /* ignore */ } finally { setSaving(false); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setSaving(false); }
   };
 
   const deleteEntry = async (id: string) => {
@@ -87,7 +88,7 @@ export default function AITrainingPage() {
       setConvertAnswer('');
       void loadUnanswered();
       void loadEntries();
-    } catch { /* ignore */ } finally { setConvertSaving(false); }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Error inesperado'); } finally { setConvertSaving(false); }
   };
 
   const grouped = entries.reduce<Record<string, KnowledgeEntry[]>>((acc, e) => {
