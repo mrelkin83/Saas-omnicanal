@@ -1,5 +1,6 @@
 'use client';
 
+import { Bike } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Delivery } from '@/lib/api';
@@ -64,7 +65,7 @@ export default function DeliveriesPage() {
             background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10,
             padding: '14px 18px', display: 'flex', gap: 16, alignItems: 'center',
           }}>
-            <div style={{ fontSize: 28 }}>🛵</div>
+            <div style={{ fontSize: 28 }}><Bike className="w-4 h-4 inline-block" /></div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 14 }}>{d.orderNumber ?? 'Pedido'} — {d.customerName ?? 'Cliente'}</div>
               <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>

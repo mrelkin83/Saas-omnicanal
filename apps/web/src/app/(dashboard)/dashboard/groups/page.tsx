@@ -1,5 +1,6 @@
 'use client';
 
+import { Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type WaGroup } from '@/lib/api';
@@ -68,7 +69,7 @@ export default function GroupsPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {groups.map((g) => (
           <div key={g.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 18px', display: 'flex', gap: 12, alignItems: 'center' }}>
-            <span style={{ fontSize: 26 }}>👥</span>
+            <span style={{ fontSize: 26 }}><Users className="w-4 h-4 inline-block" /></span>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 14 }}>{g.subject}</div>
               <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>

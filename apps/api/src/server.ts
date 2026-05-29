@@ -48,6 +48,7 @@ import { handleIncomingMessage } from './modules/channels/core/incoming-handler.
 import { startInstagramPoller, stopInstagramPoller } from './jobs/instagram-poller.job.js';
 import { startTikTokScraper, stopTikTokScraper } from './jobs/tiktok-scraper.job.js';
 import { startDemoExpiryJob, stopDemoExpiryJob } from './jobs/demo-expiry.job.js';
+import { registerAllMCPServers } from './mcp/index.js';
 import { startReminderJob, stopReminderJob } from './jobs/reminder.job.js';
 import { startBillingEnforcement, stopBillingEnforcement } from './jobs/billing-enforcement.job.js';
 import superadminAuthRoutes from './modules/superadmin/auth.routes.js';
@@ -85,6 +86,9 @@ whatsappDriver.onIncoming(handleIncomingMessage);
 instagramDriver.onIncoming(handleIncomingMessage);
 facebookDriver.onIncoming(handleIncomingMessage);
 tiktokDriver.onIncoming(handleIncomingMessage);
+
+// ── Register MCP Servers ───────────────────────────────────────────────────
+registerAllMCPServers();
 
 // ── Plugins (order matters) ────────────────────────────────────────────────
 await app.register((await import('@fastify/multipart')).default, { limits: { fileSize: 10 * 1024 * 1024 } });

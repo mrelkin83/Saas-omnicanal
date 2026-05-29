@@ -4,11 +4,12 @@ import { requireAuth } from '../../middleware/require-auth.js';
 import { getTenantById } from '../tenants/tenants.service.js';
 import { findOrCreateCustomer } from '../conversations/conversations.messaging.js';
 import { runAIEngine } from '../ai/ai.engine.js';
+import type { ChannelType } from '../channels/core/channel-driver.interface.js';
 
 const simulateBodySchema = z.object({
   customerPhone: z.string().min(1),
   message: z.string().min(1),
-  channel: z.string().default('whatsapp'),
+  channel: z.enum(['whatsapp', 'instagram', 'facebook', 'tiktok']).default('whatsapp'),
 });
 
 const devRoutes: FastifyPluginAsync = async (fastify) => {
@@ -31,7 +32,7 @@ const devRoutes: FastifyPluginAsync = async (fastify) => {
     }
 
     const customer = await findOrCreateCustomer(tenantId, customerPhone);
-    const result = await runAIEngine(tenant, customer.id, message, channel, null);
+    const result = await runAIEngine(tenant, customer.id, message, channel as ChannelType, null);
 
     if (result.llmFailed) {
       return reply.status(503).send({
@@ -41,7 +42,7 @@ const devRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
 
-    return { aiResponse: result.response, customerId: customer.id, action: result.action };
+    return { aiResponse: result.response, customerId: customer.id, tool: result.toolName };
   });
 };
 

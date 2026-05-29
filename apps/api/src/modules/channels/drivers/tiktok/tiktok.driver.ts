@@ -43,8 +43,10 @@ class TikTokDriver implements IChannelDriver {
     return session ? { status: 'connected', displayName: session.username } : { status: 'disconnected' };
   }
 
-  async sendMessage(_sessionId: string, _to: string, _message: OutgoingMessage): Promise<SendResult> {
-    // TikTok comment replies not supported in this version
+  async sendMessage(_sessionId: string, _to: string, message: OutgoingMessage): Promise<SendResult> {
+    // TikTok comment replies are extremely limited; log for manual follow-up
+    const text = message.type === 'text' ? message.text : '[Mensaje interactivo no soportado en TikTok]';
+    console.log(`[TikTok] Would reply: ${text.slice(0, 100)}`);
     return { externalId: `tt-${Date.now()}` };
   }
 
@@ -68,6 +70,7 @@ class TikTokDriver implements IChannelDriver {
           from: comment.username,
           text: comment.text,
           timestamp: new Date(comment.createdAt * 1000),
+          messageType: 'text',
         });
       }
     } catch {
@@ -82,7 +85,6 @@ class TikTokDriver implements IChannelDriver {
       Referer: 'https://www.tiktok.com/',
     };
 
-    // Fetch user's recent videos
     const userRes = await fetch(
       `https://www.tiktok.com/api/user/detail/?uniqueId=${encodeURIComponent(session.username)}`,
       { headers },

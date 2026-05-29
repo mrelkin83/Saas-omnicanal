@@ -1,5 +1,6 @@
 'use client';
 
+import { CalendarDays } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Appointment } from '@/lib/api';
@@ -73,7 +74,7 @@ export default function AppointmentsPage() {
               background: 'var(--bg-surface-1)', border: '1px solid var(--border-default)', borderRadius: 10,
               padding: '14px 18px', display: 'flex', gap: 16, alignItems: 'center',
             }}>
-              <div style={{ fontSize: 26 }}>📅</div>
+              <div style={{ fontSize: 26 }}><CalendarDays className="w-4 h-4 inline-block" /></div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{apt.serviceName}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>

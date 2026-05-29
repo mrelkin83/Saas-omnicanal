@@ -3,6 +3,10 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
+    "start": "node index.js",
+    "setup": "node index.js setup",
+    "doctor": "node index.js doctor",
+    "status": "node index.js status",
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "typecheck": "turbo run typecheck",

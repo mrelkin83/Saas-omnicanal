@@ -1,5 +1,6 @@
 'use client';
 
+import { Users } from 'lucide-react';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Campaign, type ContactList, type WaGroup, type CampaignLog } from '@/lib/api';
@@ -505,7 +506,7 @@ export default function CampaignsPage() {
           {groupsLoading && <p style={{ color: 'var(--text-tertiary)' }}>Cargando grupos...</p>}
           {!groupsLoading && groups.length === 0 && (
             <div style={{ ...card, textAlign: 'center', padding: '40px 20px' }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>👥</div>
+              <div style={{ fontSize: 32, marginBottom: 12 }}><Users className="w-4 h-4 inline-block" /></div>
               <p style={{ color: 'var(--text-tertiary)', marginBottom: 16 }}>Presiona "Cargar grupos" para obtener tus grupos de WhatsApp</p>
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Requiere WhatsApp conectado en Canales</p>
             </div>

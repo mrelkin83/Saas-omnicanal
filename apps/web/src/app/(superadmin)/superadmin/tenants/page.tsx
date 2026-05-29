@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { Search, Plus, X, UserCircle } from 'lucide-react';
 import { BUSINESS_TYPES as BT } from '@saas/shared';
+import { Card, Badge, Button, EmptyState, Skeleton } from '@/components/ui';
 
 interface Tenant {
   id: string; name: string; slug: string; businessType: string;
@@ -109,122 +111,140 @@ export default function SuperAdminTenantsPage() {
     !search || t.name.toLowerCase().includes(search.toLowerCase()) || t.slug.toLowerCase().includes(search.toLowerCase())
   );
 
-  const inp = { padding: '8px 12px', borderRadius: 8, border: '1px solid #334155', background: '#1e293b', color: '#f1f5f9', fontSize: 14, width: '100%', boxSizing: 'border-box' as const };
+  const inputCls = 'w-full px-3 py-2 rounded-lg text-sm text-text-primary bg-bg-surface-2 border border-border-default outline-none focus:ring-2 focus:ring-accent-primary/50';
 
   return (
-    <div style={{ padding: 32, color: '#f1f5f9' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Tenants ({tenants.length})</h1>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre o slug..."
-            style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid #334155', background: '#1e293b', color: '#f1f5f9', fontSize: 14, width: 260 }} />
-          <button onClick={() => setShowCreate(true)}
-            style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
-            + Crear Tenant
-          </button>
+    <div className="p-5 lg:p-8 max-w-6xl mx-auto text-text-primary">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <h1 className="text-xl font-bold">Tenants ({tenants.length})</h1>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nombre o slug..."
+              className="pl-9 pr-3 py-2 rounded-lg text-sm text-text-primary bg-bg-surface-2 border border-border-default outline-none focus:ring-2 focus:ring-accent-primary/50 w-64"
+            />
+          </div>
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus className="w-4 h-4" />
+            Crear Tenant
+          </Button>
         </div>
       </div>
 
       {/* Create modal */}
       {showCreate && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 16, padding: 28, width: '100%', maxWidth: 440, position: 'relative' }}>
-            <button onClick={() => setShowCreate(false)} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 18 }}>✕</button>
-            <h2 style={{ margin: '0 0 20px', fontSize: 18, fontWeight: 700 }}>Crear Tenant</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md relative">
+            <button onClick={() => setShowCreate(false)} className="absolute top-4 right-4 text-text-tertiary hover:text-text-primary">
+              <X className="w-5 h-5" />
+            </button>
+            <h2 className="text-lg font-bold mb-5">Crear Tenant</h2>
+            <div className="flex flex-col gap-3.5">
               <div>
-                <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Nombre del negocio</label>
-                <input value={form.tenantName} onChange={(e) => setForm((f) => ({ ...f, tenantName: e.target.value }))} placeholder="Burger Palace" style={inp} />
+                <label className="block text-xs text-text-secondary mb-1.5">Nombre del negocio</label>
+                <input value={form.tenantName} onChange={(e) => setForm((f) => ({ ...f, tenantName: e.target.value }))} placeholder="Burger Palace" className={inputCls} />
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Tipo de negocio</label>
-                <select value={form.businessType} onChange={(e) => setForm((f) => ({ ...f, businessType: e.target.value }))} style={inp}>
+                <label className="block text-xs text-text-secondary mb-1.5">Tipo de negocio</label>
+                <select value={form.businessType} onChange={(e) => setForm((f) => ({ ...f, businessType: e.target.value }))} className={inputCls}>
                   {BUSINESS_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Email del dueño</label>
-                <input type="email" value={form.ownerEmail} onChange={(e) => setForm((f) => ({ ...f, ownerEmail: e.target.value }))} placeholder="dueno@negocio.com" style={inp} />
+                <label className="block text-xs text-text-secondary mb-1.5">Email del dueño</label>
+                <input type="email" value={form.ownerEmail} onChange={(e) => setForm((f) => ({ ...f, ownerEmail: e.target.value }))} placeholder="dueno@negocio.com" className={inputCls} />
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Nombre del dueño</label>
-                <input value={form.ownerName} onChange={(e) => setForm((f) => ({ ...f, ownerName: e.target.value }))} placeholder="Juan García" style={inp} />
+                <label className="block text-xs text-text-secondary mb-1.5">Nombre del dueño</label>
+                <input value={form.ownerName} onChange={(e) => setForm((f) => ({ ...f, ownerName: e.target.value }))} placeholder="Juan García" className={inputCls} />
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Contraseña inicial</label>
-                <input type="password" value={form.ownerPassword} onChange={(e) => setForm((f) => ({ ...f, ownerPassword: e.target.value }))} placeholder="••••••••" style={inp} />
+                <label className="block text-xs text-text-secondary mb-1.5">Contraseña inicial</label>
+                <input type="password" value={form.ownerPassword} onChange={(e) => setForm((f) => ({ ...f, ownerPassword: e.target.value }))} placeholder="••••••••" className={inputCls} />
               </div>
               <div>
-                <label style={{ fontSize: 12, color: '#94a3b8', display: 'block', marginBottom: 6 }}>Plan</label>
-                <select value={form.plan} onChange={(e) => setForm((f) => ({ ...f, plan: e.target.value }))} style={inp}>
+                <label className="block text-xs text-text-secondary mb-1.5">Plan</label>
+                <select value={form.plan} onChange={(e) => setForm((f) => ({ ...f, plan: e.target.value }))} className={inputCls}>
                   {plans.length === 0 && <option value="">Cargando planes...</option>}
                   {plans.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.slug})</option>)}
                 </select>
               </div>
-              {createError && <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{createError}</p>}
-              <button
+              {createError && <p className="text-red-400 text-xs">{createError}</p>}
+              <Button
                 onClick={() => void createTenant()}
                 disabled={creating || !form.tenantName || !form.ownerEmail || !form.ownerPassword}
-                style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: 'pointer', opacity: creating ? 0.6 : 1 }}
+                isLoading={creating}
               >
-                {creating ? 'Creando...' : 'Crear Tenant'}
-              </button>
+                Crear Tenant
+              </Button>
             </div>
-          </div>
+          </Card>
         </div>
       )}
 
-      {loading && <p style={{ color: '#64748b' }}>Cargando...</p>}
+      {loading && (
+        <div className="space-y-3">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      )}
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid #334155', color: '#64748b' }}>
-              {['Nombre', 'Slug', 'Tipo', 'MRR', 'Demo', 'Estado', 'Creado', 'Acciones'].map((h) => (
-                <th key={h} style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 600 }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((t) => (
-              <tr key={t.id} style={{ borderBottom: '1px solid #1e293b' }}>
-                <td style={{ padding: '10px 12px', fontWeight: 600 }}>{t.name}</td>
-                <td style={{ padding: '10px 12px', color: '#64748b', fontFamily: 'monospace', fontSize: 12 }}>{t.slug}</td>
-                <td style={{ padding: '10px 12px' }}>{t.businessType}</td>
-                <td style={{ padding: '10px 12px', color: '#22c55e' }}>${parseFloat(t.mrr ?? '0').toLocaleString('es-CO')}</td>
-                <td style={{ padding: '10px 12px' }}>
-                  {t.isDemo ? (
-                    <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, background: '#78350f', color: '#fbbf24' }}>
-                      Demo {t.demoExpiresAt ? `hasta ${new Date(t.demoExpiresAt).toLocaleDateString('es-CO')}` : ''}
-                    </span>
-                  ) : '—'}
-                </td>
-                <td style={{ padding: '10px 12px' }}>
-                  {t.suspendedAt
-                    ? <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, background: '#7f1d1d', color: '#fca5a5' }}>Suspendido</span>
-                    : <span style={{ padding: '2px 8px', borderRadius: 10, fontSize: 11, background: '#14532d', color: '#86efac' }}>Activo</span>}
-                </td>
-                <td style={{ padding: '10px 12px', color: '#64748b', fontSize: 12 }}>{new Date(t.createdAt).toLocaleDateString('es-CO')}</td>
-                <td style={{ padding: '10px 12px' }}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => void impersonate(t.id)} disabled={impersonating === t.id}
-                      style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #334155', background: '#1e293b', color: '#94a3b8', cursor: 'pointer', fontSize: 11 }}>
-                      {impersonating === t.id ? '...' : 'Impersonar'}
-                    </button>
-                    {t.suspendedAt
-                      ? <button onClick={() => void unsuspend(t.id)} style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #16a34a', background: 'transparent', color: '#86efac', cursor: 'pointer', fontSize: 11 }}>Reactivar</button>
-                      : <button onClick={() => void suspend(t.id)} style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid #dc2626', background: 'transparent', color: '#fca5a5', cursor: 'pointer', fontSize: 11 }}>Suspender</button>
-                    }
-                  </div>
-                </td>
+      {!loading && filtered.length === 0 && (
+        <EmptyState icon={UserCircle} title="No hay tenants" description="Crea el primer tenant para comenzar." />
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-border-subtle">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border-subtle text-text-tertiary">
+                {['Nombre', 'Slug', 'Tipo', 'MRR', 'Demo', 'Estado', 'Creado', 'Acciones'].map((h) => (
+                  <th key={h} className="text-left px-3 py-2.5 font-semibold">{h}</th>
+                ))}
               </tr>
-            ))}
-            {filtered.length === 0 && !loading && (
-              <tr><td colSpan={8} style={{ padding: '16px 12px', color: '#64748b', textAlign: 'center' }}>No hay tenants.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filtered.map((t) => (
+                <tr key={t.id} className="border-b border-border-subtle/50">
+                  <td className="px-3 py-2.5 font-semibold text-text-primary">{t.name}</td>
+                  <td className="px-3 py-2.5 text-text-tertiary font-mono text-xs">{t.slug}</td>
+                  <td className="px-3 py-2.5 text-text-secondary">{t.businessType}</td>
+                  <td className="px-3 py-2.5 text-emerald-400">${parseFloat(t.mrr ?? '0').toLocaleString('es-CO')}</td>
+                  <td className="px-3 py-2.5">
+                    {t.isDemo ? (
+                      <Badge variant="warning">
+                        Demo {t.demoExpiresAt ? `hasta ${new Date(t.demoExpiresAt).toLocaleDateString('es-CO')}` : ''}
+                      </Badge>
+                    ) : '—'}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {t.suspendedAt
+                      ? <Badge variant="danger">Suspendido</Badge>
+                      : <Badge variant="success">Activo</Badge>
+                    }
+                  </td>
+                  <td className="px-3 py-2.5 text-text-tertiary text-xs">{new Date(t.createdAt).toLocaleDateString('es-CO')}</td>
+                  <td className="px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => void impersonate(t.id)} disabled={impersonating === t.id} isLoading={impersonating === t.id}>
+                        Impersonar
+                      </Button>
+                      {t.suspendedAt
+                        ? <Button size="sm" variant="secondary" onClick={() => void unsuspend(t.id)}>Reactivar</Button>
+                        : <Button size="sm" variant="danger" onClick={() => void suspend(t.id)}>Suspender</Button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

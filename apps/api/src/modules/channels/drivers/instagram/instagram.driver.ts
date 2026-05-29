@@ -32,8 +32,50 @@ class InstagramDriver implements IChannelDriver {
   }
 
   async sendMessage(sessionId: string, to: string, message: OutgoingMessage): Promise<SendResult> {
-    await bridge.sendMessage(sessionId, to, message.text);
-    return { externalId: `ig-${Date.now()}` };
+    // Instagram DM only supports text and media (no buttons, lists, quick replies)
+    switch (message.type) {
+      case 'text':
+        await bridge.sendMessage(sessionId, to, message.text);
+        return { externalId: `ig-${Date.now()}` };
+
+      case 'button':
+      case 'list': {
+        // Fallback to text with numbered options
+        const options = message.type === 'button'
+          ? message.buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n')
+          : message.sections.flatMap((s) => s.rows.map((r, i) => `${i + 1}. ${r.title}`)).join('\n');
+        await bridge.sendMessage(sessionId, to, `${message.body}\n\n${options}`);
+        return { externalId: `ig-${Date.now()}` };
+      }
+
+      case 'quick_reply': {
+        const opts = message.options.map((o, i) => `${i + 1}. ${o.title}`).join('\n');
+        await bridge.sendMessage(sessionId, to, `${message.text}\n\n${opts}`);
+        return { externalId: `ig-${Date.now()}` };
+      }
+
+      case 'media': {
+        // Instagram bridge doesn't support media sending yet; fallback to text
+        await bridge.sendMessage(sessionId, to, message.caption || '[Media shared]');
+        return { externalId: `ig-${Date.now()}` };
+      }
+
+      case 'location': {
+        const mapsUrl = `https://maps.google.com/?q=${message.latitude},${message.longitude}`;
+        await bridge.sendMessage(sessionId, to, `${message.name ? `${message.name}\n` : ''}${mapsUrl}`);
+        return { externalId: `ig-${Date.now()}` };
+      }
+
+      case 'template': {
+        await bridge.sendMessage(sessionId, to, `[Template: ${message.templateName}]`);
+        return { externalId: `ig-${Date.now()}` };
+      }
+
+      default: {
+        await bridge.sendMessage(sessionId, to, 'Mensaje no soportado en Instagram.');
+        return { externalId: `ig-${Date.now()}` };
+      }
+    }
   }
 
   onIncoming(handler: IncomingHandler): void {
@@ -63,6 +105,7 @@ class InstagramDriver implements IChannelDriver {
         from: msg.from_username,
         text: msg.text,
         timestamp: new Date(msg.timestamp * 1000),
+        messageType: 'text',
       });
     }
   }

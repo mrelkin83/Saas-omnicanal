@@ -1,5 +1,6 @@
 'use client';
 
+import { Brain, CheckCircle } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type KnowledgeEntry, type UnansweredQuery } from '@/lib/api';
@@ -216,7 +217,7 @@ export default function AITrainingPage() {
           {loading && <p style={{ color: 'var(--text-tertiary)' }}>Cargando...</p>}
           {!loading && entries.length === 0 && (
             <div style={{ background: 'var(--bg-surface-1)', border: '1px solid var(--border-default)', borderRadius: 12, padding: '40px 20px', textAlign: 'center' }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>🧠</div>
+              <div style={{ fontSize: 36, marginBottom: 12 }}><Brain className="w-4 h-4 inline-block" /></div>
               <p style={{ fontWeight: 600, marginBottom: 8 }}>Base de conocimiento vacía</p>
               <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 16 }}>
                 Agrega preguntas y respuestas frecuentes para que tu agente IA las use cuando los clientes pregunten.
@@ -271,7 +272,7 @@ export default function AITrainingPage() {
           {uLoading && <p style={{ color: 'var(--text-tertiary)' }}>Cargando...</p>}
           {!uLoading && unanswered.length === 0 && (
             <div style={{ background: 'var(--bg-surface-1)', border: '1px solid var(--border-default)', borderRadius: 12, padding: '40px 20px', textAlign: 'center' }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
+              <div style={{ fontSize: 36, marginBottom: 12 }}><CheckCircle className="w-4 h-4 inline-block" /></div>
               <p style={{ fontWeight: 600 }}>Sin preguntas pendientes</p>
               <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Tu agente pudo responder todo lo que le preguntaron.</p>
             </div>

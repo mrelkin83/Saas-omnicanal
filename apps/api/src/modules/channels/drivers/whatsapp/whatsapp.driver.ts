@@ -53,8 +53,79 @@ class WhatsAppDriver implements IChannelDriver {
 
   async sendMessage(sessionId: string, to: string, message: OutgoingMessage): Promise<SendResult> {
     const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
-    const result = await evo.sendText(sessionId, jid, message.text);
-    return { externalId: result.key.id };
+
+    switch (message.type) {
+      case 'text': {
+        const result = await evo.sendText(sessionId, jid, message.text);
+        return { externalId: result.key.id };
+      }
+
+      case 'button': {
+        const result = await evo.sendButtons(
+          sessionId,
+          jid,
+          message.body.slice(0, 50), // title max 50
+          message.body,
+          message.footer,
+          message.buttons.map((b) => ({ buttonId: b.id, buttonText: b.title })),
+        );
+        return { externalId: result.key.id };
+      }
+
+      case 'list': {
+        const result = await evo.sendList(
+          sessionId,
+          jid,
+          message.body.slice(0, 50),
+          message.body,
+          message.buttonText,
+          message.footer,
+          message.sections.map((s) => ({
+            title: s.title,
+            rows: s.rows.map((r) => ({ title: r.title, rowId: r.id, description: r.description ?? '' })),
+          })),
+        );
+        return { externalId: result.key.id };
+      }
+
+      case 'media': {
+        // Evolution API doesn't support audio directly; send as document
+        const mediaType = message.mediaType === 'audio' ? 'document' : message.mediaType;
+        const result = await evo.sendMedia(
+          sessionId,
+          jid,
+          message.url,
+          mediaType,
+          message.caption,
+          message.filename,
+        );
+        return { externalId: result.key.id };
+      }
+
+      case 'location': {
+        // Evolution API doesn't have direct location endpoint; fallback to text with maps link
+        const mapsUrl = `https://maps.google.com/?q=${message.latitude},${message.longitude}`;
+        const text = `${message.name ? `📍 ${message.name}\n` : ''}${message.address ? `${message.address}\n` : ''}${mapsUrl}`;
+        const result = await evo.sendText(sessionId, jid, text);
+        return { externalId: result.key.id };
+      }
+
+      case 'quick_reply': {
+        const result = await evo.sendText(sessionId, jid, message.text);
+        return { externalId: result.key.id };
+      }
+
+      case 'template': {
+        const result = await evo.sendText(sessionId, jid, `[Template: ${message.templateName}]`);
+        return { externalId: result.key.id };
+      }
+
+      default: {
+        // Fallback for any unknown type
+        const result = await evo.sendText(sessionId, jid, 'Mensaje no soportado en este canal.');
+        return { externalId: result.key.id };
+      }
+    }
   }
 
   onIncoming(handler: IncomingHandler): void {

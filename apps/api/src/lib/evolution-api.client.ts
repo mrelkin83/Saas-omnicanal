@@ -97,6 +97,42 @@ export async function deleteInstance(instanceName: string): Promise<void> {
   await evoRequest<void>('DELETE', `/instance/delete/${instanceName}`);
 }
 
+export async function sendButtons(
+  instanceName: string,
+  number: string,
+  title: string,
+  description: string,
+  footer: string | undefined,
+  buttons: { buttonId: string; buttonText: string }[],
+): Promise<EvoSendTextResult> {
+  return evoRequest<EvoSendTextResult>('POST', `/message/sendButtons/${instanceName}`, {
+    number,
+    title,
+    description,
+    footerText: footer ?? '',
+    buttons,
+  });
+}
+
+export async function sendList(
+  instanceName: string,
+  number: string,
+  title: string,
+  description: string,
+  buttonText: string,
+  footer: string | undefined,
+  sections: { title: string; rows: { title: string; rowId: string; description?: string }[] }[],
+): Promise<EvoSendTextResult> {
+  return evoRequest<EvoSendTextResult>('POST', `/message/sendList/${instanceName}`, {
+    number,
+    title,
+    description,
+    buttonText,
+    footerText: footer ?? '',
+    sections,
+  });
+}
+
 export async function fetchInstances(): Promise<{ instance: { instanceName: string; status: string } }[]> {
   return evoRequest<{ instance: { instanceName: string; status: string } }[]>('GET', '/instance/fetchInstances');
 }

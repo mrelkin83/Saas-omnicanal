@@ -1,5 +1,6 @@
 'use client';
 
+import { MessagesSquare } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type ConversationSummary } from '@/lib/api';
@@ -52,7 +53,7 @@ export default function ConversationsPage() {
       <div className="space-y-2">
         {conversations.length === 0 && (
           <div className="text-center py-16 text-text-tertiary">
-            <p className="text-4xl mb-3">💬</p>
+            <p className="text-4xl mb-3"><MessagesSquare className="w-4 h-4 inline-block" /></p>
             <p className="text-sm">No hay conversaciones aún.</p>
             <p className="text-xs mt-1">Se crearán automáticamente cuando conectes un canal.</p>
           </div>

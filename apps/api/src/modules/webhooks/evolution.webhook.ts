@@ -72,6 +72,7 @@ async function handleMessagesUpsert(instanceName: string, data: Record<string, u
         from: phone,
         text,
         timestamp: new Date(),
+        messageType: 'text',
       });
     } catch (err) {
       console.error('Error dispatching incoming WhatsApp message:', err);

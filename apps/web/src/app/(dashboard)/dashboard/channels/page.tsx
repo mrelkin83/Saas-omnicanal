@@ -1,5 +1,6 @@
 'use client';
 
+import { CheckCircle, XCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api } from '@/lib/api';
@@ -283,12 +284,12 @@ export default function ChannelsPage() {
                   </>
                 ) : waModalState === 'connected' ? (
                   <>
-                    <span style={{ fontSize: 48 }}>✅</span>
+                    <span style={{ fontSize: 48 }}><CheckCircle className="w-4 h-4 inline-block" /></span>
                     <p style={{ fontWeight: 600, margin: 0 }}>¡WhatsApp conectado!</p>
                   </>
                 ) : (
                   <>
-                    <span style={{ fontSize: 48 }}>❌</span>
+                    <span style={{ fontSize: 48 }}><XCircle className="w-4 h-4 inline-block" /></span>
                     <p style={{ fontWeight: 600, margin: 0 }}>Error al conectar</p>
                     <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, textAlign: 'center' }}>{error}</p>
                     <button onClick={() => { closeModal(); void openWhatsApp(); }} style={{ padding: '8px 20px', borderRadius: 8, border: 'none', background: CHANNEL_META.whatsapp.color, color: '#fff', fontWeight: 600, cursor: 'pointer' }}>

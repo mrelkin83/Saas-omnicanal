@@ -1,5 +1,6 @@
 'use client';
 
+import { Calendar } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Reservation } from '@/lib/api';
@@ -62,7 +63,7 @@ export default function ReservationsPage() {
             background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10,
             padding: '14px 18px', display: 'flex', gap: 16, alignItems: 'center',
           }}>
-            <div style={{ fontSize: 28 }}>🗓️</div>
+            <div style={{ fontSize: 28 }}><Calendar className="w-4 h-4 inline-block" /></div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, fontSize: 14 }}>
                 {r.reservedDate} a las {r.reservedTime} — {r.partySize} persona(s)

@@ -1,25 +1,7 @@
 import type { Tenant } from '@saas/db';
-
-type Capability = 'catalog' | 'cart_orders' | 'appointments' | 'delivery' | 'payments' | 'quotes' | 'reservations';
-
-const CAPABILITY_ACTIONS: Record<Capability, string> = {
-  catalog: `- VER_CATALOGO: Listar servicios/productos disponibles. params: {}`,
-  appointments: `- VER_SLOTS: Ver horarios disponibles. params: {"servicio": string, "fecha": "YYYY-MM-DD"}
-- CREAR_CITA: Crear una cita. params: {"servicio": string, "fecha_hora": "ISO8601", "duracion_minutos": number}
-- VER_CITAS: Ver citas del cliente. params: {}
-- CANCELAR_CITA: Cancelar una cita. params: {"cita_id": string}`,
-  cart_orders: `- AGREGAR_CARRITO: Agregar producto al carrito. params: {"producto": string, "cantidad": number}
-- VER_CARRITO: Ver el carrito actual. params: {}
-- CREAR_PEDIDO: Confirmar y crear el pedido. params: {}
-- VER_ESTADO_PEDIDO: Ver estado de un pedido. params: {"pedido_id": string}`,
-  quotes: `- COTIZAR: Solicitar una cotización. params: {"descripcion": string}
-- VER_COTIZACION: Ver una cotización existente. params: {"cotizacion_id": string}`,
-  reservations: `- CREAR_RESERVA: Crear una reserva. params: {"fecha_hora": "ISO8601", "personas": number, "notas": string}
-- VER_RESERVAS: Ver reservas del cliente. params: {}
-- CANCELAR_RESERVA: Cancelar una reserva. params: {"reserva_id": string}`,
-  delivery: ``,
-  payments: `- ENVIAR_PAGO: Enviar link de pago Wompi. params: {"monto": number, "concepto": string}`,
-};
+import type { ChannelType } from '../channels/core/channel-driver.interface.js';
+import { buildChannelPromptSection } from '../channels/core/channel-prompt-adapter.js';
+import type { MCPServer } from '../../mcp/core/mcp-server.interface.js';
 
 const TONE_INSTRUCTIONS: Record<string, string> = {
   amigable: 'Sé cálido, cercano y usa emojis con moderación.',
@@ -28,33 +10,34 @@ const TONE_INSTRUCTIONS: Record<string, string> = {
   casual: 'Sé casual, relajado y usa jerga colombiana cuando sea apropiado.',
 };
 
-export function buildSystemPrompt(params: {
+export interface BuildSystemPromptParams {
   tenant: Tenant;
+  channel: ChannelType;
   capabilities: string[];
   knowledgeContext: string;
   dynamicContext: string;
   currentDateTime: string;
-}): string {
-  const { tenant, capabilities, knowledgeContext, dynamicContext, currentDateTime } = params;
+  mcpServers: MCPServer[];
+}
 
-  const enabledActions = capabilities
-    .map((cap) => CAPABILITY_ACTIONS[cap as Capability] ?? '')
-    .filter(Boolean)
-    .join('\n');
+export function buildSystemPrompt(params: BuildSystemPromptParams): string {
+  const { tenant, channel, knowledgeContext, dynamicContext, currentDateTime, mcpServers } = params;
 
   const toneInstruction = TONE_INSTRUCTIONS[tenant.aiTone ?? 'amigable'] ?? TONE_INSTRUCTIONS['amigable']!;
 
   const sections: string[] = [
-    `Eres ${tenant.aiAgentName ?? 'Asistente'}, el asistente de IA de ${tenant.name}. ${toneInstruction}`,
+    `Eres ${tenant.aiAgentName ?? 'Asistente'}, el asistente virtual de ${tenant.name}. ${toneInstruction}`,
     `Responde SIEMPRE en español colombiano. Sé conciso y útil.`,
     ``,
-    `FECHA Y HORA ACTUAL: ${currentDateTime} (zona horaria: America/Bogota)`,
+    `FECHA Y HORA ACTUAL: ${currentDateTime} (zona horaria: ${tenant.timezone ?? 'America/Bogota'})`,
     ``,
     `INFORMACIÓN DEL NEGOCIO:`,
     `- Nombre: ${tenant.name}`,
     tenant.description ? `- Descripción: ${tenant.description}` : '',
     tenant.phone ? `- Teléfono: ${tenant.phone}` : '',
     tenant.address ? `- Dirección: ${tenant.address}` : '',
+    ``,
+    buildChannelPromptSection(channel),
   ];
 
   if (knowledgeContext) {
@@ -65,19 +48,52 @@ export function buildSystemPrompt(params: {
     sections.push('', 'CONTEXTO DEL CLIENTE:', dynamicContext);
   }
 
-  if (enabledActions) {
+  // MCP Tools section — the LLM can invoke any tool from available MCP servers
+  if (mcpServers.length > 0) {
     sections.push(
       '',
-      'INSTRUCCIÓN CRÍTICA — ACCIONES:',
-      'Cuando el cliente quiera realizar una acción, responde SOLO con este JSON exacto (sin texto adicional):',
-      '{"accion": "NOMBRE_ACCION", "params": {...}}',
+      '═══════════════════════════════════════════════════════════════',
+      'HERRAMIENTAS DISPONIBLES (TOOLS):',
+      '═══════════════════════════════════════════════════════════════',
+      'Tienes acceso a las siguientes herramientas para ayudar al cliente.',
+      'Cuando necesites usar una herramienta, responde SOLO con un JSON de invocación:',
+      '{"tool": "nombre_herramienta", "params": {...}}',
       '',
-      'Acciones disponibles:',
-      '- INFO_NEGOCIO: Dar información del negocio. params: {}',
-      '- ESCALAMIENTO: Transferir a agente humano. params: {"motivo": string}',
-      enabledActions,
+      'Puedes invocar múltiples herramientas en secuencia si es necesario.',
+      'Después de recibir el resultado de una herramienta, formatea la respuesta',
+      'de forma natural para el cliente según las REGLAS DEL CANAL.',
+      '',
     );
+
+    for (const server of mcpServers) {
+      sections.push(`--- ${server.name} ---`);
+      sections.push(server.description);
+      for (const tool of server.tools) {
+        const paramDesc = Object.entries(tool.parameters.shape)
+          .map(([k, v]) => {
+            const isOpt = (v as { isOptional?: () => boolean }).isOptional?.() ?? false;
+            return `${k}${isOpt ? '?' : ''}: ${(v as { description?: string }).description || 'string'}`;
+          })
+          .join(', ');
+        sections.push(`  • ${tool.name}(${paramDesc}) — ${tool.description}`);
+      }
+      sections.push('');
+    }
   }
 
-  return sections.filter((s) => s !== undefined).join('\n');
+  sections.push(
+    '',
+    '═══════════════════════════════════════════════════════════════',
+    'INSTRUCCIONES FINALES:',
+    '═══════════════════════════════════════════════════════════════',
+    '- Si el cliente quiere información general del negocio, responde directamente.',
+    '- Si el cliente quiere realizar una acción (agendar, comprar, pagar, etc.),',
+    '  invoca la herramienta correspondiente con {"tool": "...", "params": {...}}.',
+    '- Si no tienes una herramienta para lo que pide el cliente, indícalo amablemente.',
+    '- Si el cliente pide hablar con un humano, invoca {"tool": "escalamiento", "params": {"motivo": "..."}}.',
+    '- NUNCA inventes información que no tengas en el contexto o las herramientas.',
+    '- Respeta SIEMPRE las REGLAS DEL CANAL para formatear tu respuesta.',
+  );
+
+  return sections.filter((s) => s !== undefined && s !== '').join('\n');
 }

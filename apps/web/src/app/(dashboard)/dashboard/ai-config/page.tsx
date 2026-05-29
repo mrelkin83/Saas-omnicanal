@@ -1,5 +1,6 @@
 'use client';
 
+import { Bot } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api } from '@/lib/api';
@@ -78,7 +79,7 @@ export default function AiConfigPage() {
           justifyContent: 'space-between',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 18 }}>🤖</span>
+            <span style={{ fontSize: 18 }}><Bot className="w-4 h-4 inline-block" /></span>
             <span style={{ fontWeight: 600, fontSize: 14 }}>Simulador de conversación</span>
           </div>
           <button

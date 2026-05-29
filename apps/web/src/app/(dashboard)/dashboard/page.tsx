@@ -4,6 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth';
 import { api, type TenantMe } from '@/lib/api';
+import { Card, SkeletonKpiGrid, Badge, EmptyState } from '@/components/ui';
+import {
+  MessageSquare, Bot, ShoppingCart, CalendarDays, Clock,
+  TrendingUp, ArrowRight, Radio, Zap, AlertTriangle,
+} from 'lucide-react';
 
 interface DashboardKPIs {
   conversationsToday: number;
@@ -17,11 +22,11 @@ interface DashboardKPIs {
 
 interface ChannelStatus { id: string; status: string; displayName: string | null; }
 
-const CHANNEL_META: Record<string, { label: string; icon: string; color: string }> = {
-  whatsapp:  { label: 'WhatsApp',  icon: '💬', color: '#25D366' },
-  instagram: { label: 'Instagram', icon: '📸', color: '#E1306C' },
-  facebook:  { label: 'Facebook',  icon: '📘', color: '#1877F2' },
-  tiktok:    { label: 'TikTok',    icon: '🎵', color: '#010101' },
+const CHANNEL_META: Record<string, { label: string; color: string; icon: typeof Radio }> = {
+  whatsapp:  { label: 'WhatsApp',  color: '#25D366', icon: MessageSquare },
+  instagram: { label: 'Instagram', color: '#E1306C', icon: Zap },
+  facebook:  { label: 'Facebook',  color: '#1877F2', icon: Zap },
+  tiktok:    { label: 'TikTok',    color: '#FE2C55', icon: Zap },
 };
 
 const fmtCOP = (n: number) =>
@@ -58,147 +63,160 @@ export default function DashboardPage() {
 
   const statCards = kpis
     ? [
-        { label: 'Conversaciones hoy', value: fmtNum(kpis.conversationsToday), icon: '💬' },
-        { label: 'IA autónoma',         value: `${kpis.aiHandledPct}%`,          icon: '🤖' },
-        { label: 'Ventas hoy',          value: fmtCOP(kpis.revenueToday),         icon: '💰' },
-        { label: 'Pedidos hoy',         value: fmtNum(kpis.ordersToday),           icon: '🛒' },
-        { label: 'Citas hoy',           value: fmtNum(kpis.appointmentsToday),     icon: '📅' },
-        { label: 'Pedidos pendientes',  value: fmtNum(kpis.pendingOrders),          icon: '⏳', alert: kpis.pendingOrders > 0 },
+        { label: 'Conversaciones hoy', value: fmtNum(kpis.conversationsToday), icon: MessageSquare, alert: false },
+        { label: 'IA autónoma', value: `${kpis.aiHandledPct}%`, icon: Bot, alert: false },
+        { label: 'Ventas hoy', value: fmtCOP(kpis.revenueToday), icon: TrendingUp, alert: false },
+        { label: 'Pedidos hoy', value: fmtNum(kpis.ordersToday), icon: ShoppingCart, alert: false },
+        { label: 'Citas hoy', value: fmtNum(kpis.appointmentsToday), icon: CalendarDays, alert: false },
+        { label: 'Pendientes', value: fmtNum(kpis.pendingOrders), icon: Clock, alert: kpis.pendingOrders > 0 },
       ]
-    : [
-        { label: 'Conversaciones hoy', value: '—', icon: '💬' },
-        { label: 'IA autónoma',         value: '—', icon: '🤖' },
-        { label: 'Ventas hoy',          value: '—', icon: '💰' },
-        { label: 'Pedidos hoy',         value: '—', icon: '🛒' },
-        { label: 'Citas hoy',           value: '—', icon: '📅' },
-        { label: 'Pedidos pendientes',  value: '—', icon: '⏳' },
-      ];
+    : [];
 
   return (
-    <div style={{ padding: 32, maxWidth: 1000, margin: '0 auto' }}>
-      {loading && <p style={{ color: 'var(--text-tertiary)' }}>Cargando dashboard...</p>}
-      {error && <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 16 }}>{error}</p>}
-
+    <div className="p-5 lg:p-8 max-w-6xl mx-auto">
       {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 4px' }}>
+      <div className="mb-6">
+        <h1 className="text-xl lg:text-2xl font-bold text-text-primary">
           {greeting}, {tenant?.name ?? user?.email?.split('@')[0] ?? ''}
         </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+        <p className="text-sm text-text-secondary mt-1">
           Vista general del día · {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
       </div>
 
-      {/* KPI grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 28 }}>
-        {statCards.map((s) => (
-          <div key={s.label} style={{
-            padding: '18px 20px',
-            borderRadius: 12,
-            border: `1px solid ${(s as { alert?: boolean }).alert ? '#f59e0b' : 'var(--border-subtle)'}`,
-            background: 'var(--bg-surface-1)',
-          }}>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span>{s.icon}</span> {s.label}
-            </div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: (s as { alert?: boolean }).alert ? '#f59e0b' : 'var(--text-primary)' }}>
-              {s.value}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Channels status */}
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h2 style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
-            Canales
-          </h2>
-          <Link href="/dashboard/channels" style={{ fontSize: 12, color: 'var(--accent-primary)', textDecoration: 'none' }}>
-            Gestionar
-          </Link>
+      {error && (
+        <div className="mb-6 flex items-center gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          {error}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-          {Object.entries(CHANNEL_META).map(([key, meta]) => {
-            const session = channels[key];
-            const connected = session?.status === 'connected';
-            const count = kpis?.channelBreakdown[key] ?? 0;
+      )}
+
+      {/* KPI grid */}
+      {loading ? (
+        <SkeletonKpiGrid count={6} />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+          {statCards.map((s) => {
+            const Icon = s.icon;
             return (
-              <Link key={key} href="/dashboard/channels" style={{ textDecoration: 'none' }}>
-                <div style={{
-                  padding: '14px 16px',
-                  borderRadius: 10,
-                  border: `1px solid ${connected ? meta.color : 'var(--border-subtle)'}`,
-                  background: 'var(--bg-surface-1)',
-                  display: 'flex', flexDirection: 'column', gap: 8,
-                  cursor: 'pointer',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 22 }}>{meta.icon}</span>
-                    <span style={{
-                      fontSize: 10, padding: '2px 8px', borderRadius: 10,
-                      background: connected ? `${meta.color}22` : 'var(--bg-surface-2)',
-                      color: connected ? meta.color : 'var(--text-tertiary)',
-                    }}>
-                      {connected ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{meta.label}</div>
-                    {connected && session?.displayName && (
-                      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{session.displayName}</div>
-                    )}
-                    {count > 0 && (
-                      <div style={{ fontSize: 11, color: meta.color, marginTop: 2 }}>{count} conv. hoy</div>
-                    )}
-                  </div>
+              <Card key={s.label} className={s.alert ? 'border-amber-500/30' : ''}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Icon className={`w-4 h-4 ${s.alert ? 'text-amber-400' : 'text-text-tertiary'}`} />
+                  <span className="text-xs text-text-tertiary">{s.label}</span>
                 </div>
-              </Link>
+                <div className={`text-2xl font-bold ${s.alert ? 'text-amber-400' : 'text-text-primary'}`}>
+                  {s.value}
+                </div>
+              </Card>
             );
           })}
         </div>
-      </div>
+      )}
 
-      {/* Agent info + quick links */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        {tenant && (
-          <div style={{ padding: '18px 20px', borderRadius: 12, border: '1px solid var(--border-subtle)', background: 'var(--bg-surface-1)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--accent-primary-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🤖</div>
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{tenant.aiAgentName}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Tono {tenant.aiTone} · {tenant.aiModel}</div>
-              </div>
-            </div>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>
-              Tu agente responde clientes 24/7 en todos los canales conectados.
-            </p>
-            <Link href="/dashboard/ai-config" style={{ fontSize: 13, color: 'var(--accent-primary)', textDecoration: 'none', fontWeight: 500 }}>
-              Probar agente →
-            </Link>
-          </div>
-        )}
+      {/* Channels status */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+            Canales
+          </h2>
+          <Link
+            href="/dashboard/channels"
+            className="text-xs text-accent-primary hover:text-accent-primary-hover font-medium flex items-center gap-1"
+          >
+            Gestionar <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
 
-        <div style={{ padding: '18px 20px', borderRadius: 12, border: '1px solid var(--border-subtle)', background: 'var(--bg-surface-1)' }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14 }}>Accesos rápidos</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[
-              { href: '/dashboard/inbox', icon: '📥', label: 'Bandeja de entrada' },
-              { href: '/dashboard/orders', icon: '🛒', label: 'Ver pedidos' },
-              { href: '/dashboard/appointments', icon: '📅', label: 'Ver citas' },
-              { href: '/dashboard/catalog', icon: '📦', label: 'Gestionar catálogo' },
-            ].map((item) => (
-              <Link key={item.href} href={item.href} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '8px 10px', borderRadius: 8, textDecoration: 'none',
-                color: 'var(--text-secondary)', fontSize: 13, fontWeight: 500,
-                transition: 'background 0.15s',
-              }}>
-                <span>{item.icon}</span> {item.label}
-              </Link>
+        {loading ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-24 rounded-xl bg-bg-surface-1 border border-border-subtle animate-pulse" />
             ))}
           </div>
-        </div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {Object.entries(CHANNEL_META).map(([key, meta]) => {
+              const session = channels[key];
+              const connected = session?.status === 'connected';
+              const count = kpis?.channelBreakdown[key] ?? 0;
+              const Icon = meta.icon;
+              return (
+                <Link key={key} href="/dashboard/channels" className="group">
+                  <Card className="h-full transition-all hover:border-border-strong hover:shadow-md">
+                    <div className="flex items-center justify-between mb-2">
+                      <Icon className="w-5 h-5" style={{ color: meta.color }} />
+                      <Badge
+                        variant={connected ? 'success' : 'default'}
+                        size="sm"
+                      >
+                        {connected ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </div>
+                    <div className="text-sm font-semibold text-text-primary">{meta.label}</div>
+                    {connected && session?.displayName && (
+                      <div className="text-[11px] text-text-tertiary mt-0.5 truncate">{session.displayName}</div>
+                    )}
+                    {count > 0 && (
+                      <div className="text-[11px] mt-1" style={{ color: meta.color }}>
+                        {count} conv. hoy
+                      </div>
+                    )}
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Bottom grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {tenant && (
+          <Card>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-lg bg-accent-primary-subtle flex items-center justify-center">
+                <Bot className="w-5 h-5 text-accent-primary" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm text-text-primary">{tenant.aiAgentName}</div>
+                <div className="text-xs text-text-tertiary">Tono {tenant.aiTone} · {tenant.aiModel}</div>
+              </div>
+            </div>
+            <p className="text-sm text-text-secondary mb-3">
+              Tu agente responde clientes 24/7 en todos los canales conectados.
+            </p>
+            <Link
+              href="/dashboard/ai-config"
+              className="text-sm text-accent-primary hover:text-accent-primary-hover font-medium inline-flex items-center gap-1"
+            >
+              Probar agente <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </Card>
+        )}
+
+        <Card>
+          <div className="font-semibold text-sm text-text-primary mb-3">Accesos rápidos</div>
+          <div className="flex flex-col gap-1">
+            {[
+              { href: '/dashboard/inbox', icon: MessageSquare, label: 'Bandeja de entrada' },
+              { href: '/dashboard/orders', icon: ShoppingCart, label: 'Ver pedidos' },
+              { href: '/dashboard/appointments', icon: CalendarDays, label: 'Ver citas' },
+              { href: '/dashboard/catalog', icon: Zap, label: 'Gestionar catálogo' },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-bg-surface-2 transition-colors"
+                >
+                  <Icon className="w-4 h-4 text-text-tertiary" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </Card>
       </div>
     </div>
   );

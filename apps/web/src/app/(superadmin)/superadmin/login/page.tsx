@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Crown } from 'lucide-react';
+import { Button } from '@/components/ui';
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -29,26 +31,37 @@ export default function SuperAdminLoginPage() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 380, background: '#1e293b', borderRadius: 16, padding: 32, border: '1px solid #334155' }}>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 40, marginBottom: 8 }}>👑</div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>SuperAdmin Panel</h1>
-          <p style={{ fontSize: 13, color: '#64748b', margin: '6px 0 0' }}>Acceso restringido</p>
+    <div className="min-h-screen bg-bg-surface-1 flex items-center justify-center">
+      <div className="w-full max-w-sm bg-bg-surface-2 rounded-2xl p-8 border border-border-subtle">
+        <div className="text-center mb-7">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-bg-surface-1 border border-border-subtle mb-3">
+            <Crown className="w-6 h-6 text-text-primary" />
+          </div>
+          <h1 className="text-xl font-bold text-text-primary">SuperAdmin Panel</h1>
+          <p className="text-sm text-text-tertiary mt-1">Acceso restringido</p>
         </div>
         <form onSubmit={(e) => { void handleSubmit(e); }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+          <div className="flex flex-col gap-3.5">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
               placeholder="Email"
-              style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#f1f5f9', fontSize: 14 }} />
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
+              className="w-full px-3.5 py-2.5 rounded-lg text-sm text-text-primary bg-bg-surface-1 border border-border-default outline-none focus:ring-2 focus:ring-accent-primary/50"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
               placeholder="Contraseña"
-              style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid #334155', background: '#0f172a', color: '#f1f5f9', fontSize: 14 }} />
-            {error && <p style={{ color: '#ef4444', fontSize: 13, margin: 0 }}>{error}</p>}
-            <button type="submit" disabled={loading}
-              style={{ padding: '10px', borderRadius: 8, border: 'none', background: '#1d4ed8', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}>
+              className="w-full px-3.5 py-2.5 rounded-lg text-sm text-text-primary bg-bg-surface-1 border border-border-default outline-none focus:ring-2 focus:ring-accent-primary/50"
+            />
+            {error && <p className="text-red-400 text-sm">{error}</p>}
+            <Button type="submit" isLoading={loading} className="w-full">
               {loading ? 'Ingresando...' : 'Ingresar'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

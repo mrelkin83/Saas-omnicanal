@@ -5,9 +5,10 @@ import { runAIEngine } from '../../ai/ai.engine.js';
 import { sendMessage } from './channel-manager.js';
 import { pushInboxEvent } from '../../conversations/inbox.sse.js';
 import { assignRoundRobin } from './round-robin.js';
+import { formatMessageForChannel } from './channel-message-formatter.js';
 
 export async function handleIncomingMessage(msg: NormalizedMessage): Promise<void> {
-  const { tenantId, channel, from, text, externalId } = msg;
+  const { tenantId, channel, from, text, externalId, messageType, buttonTitle, listReplyTitle } = msg;
 
   // Find tenant
   const [tenant] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
@@ -30,7 +31,19 @@ export async function handleIncomingMessage(msg: NormalizedMessage): Promise<voi
     }
   }
 
-  const inbound = await saveInboundMessage(tenantId, conversation.id, customer.id, text, externalId);
+  // Build enriched text for the AI engine (includes button/list reply context)
+  let enrichedText = text;
+  if (messageType === 'button_reply' && buttonTitle) {
+    enrichedText = `[El cliente pulsó el botón: "${buttonTitle}"]`;
+  } else if (messageType === 'list_reply' && listReplyTitle) {
+    enrichedText = `[El cliente seleccionó de la lista: "${listReplyTitle}"]`;
+  } else if (messageType === 'image') {
+    enrichedText = text || '[El cliente envió una imagen]';
+  } else if (messageType === 'location') {
+    enrichedText = '[El cliente envió una ubicación]';
+  }
+
+  const inbound = await saveInboundMessage(tenantId, conversation.id, customer.id, enrichedText, externalId);
 
   // Push to inbox SSE
   pushInboxEvent(tenantId, 'message', {
@@ -47,12 +60,15 @@ export async function handleIncomingMessage(msg: NormalizedMessage): Promise<voi
 
   if (state?.state === 'AGENTE_ACTIVO') return;
 
-  // Run AI engine
-  const result = await runAIEngine(tenant, customer.id, text, channel, conversation.id);
+  // Run AI engine with channel context
+  const result = await runAIEngine(tenant, customer.id, enrichedText, channel, conversation.id);
 
-  // Send response via channel (from = reply-to address: phone for WA, threadId for IG, threadID for FB)
+  // Format response for the specific channel (rich messages: buttons, lists, quick replies)
+  const outgoingMessage = formatMessageForChannel(result.response, channel);
+
+  // Send response via channel
   try {
-    await sendMessage(tenantId, channel, msg.from, { type: 'text', text: result.response });
+    await sendMessage(tenantId, channel, msg.from, outgoingMessage);
   } catch {
     // Channel might not be able to send (TikTok, etc.) — still save the message
   }

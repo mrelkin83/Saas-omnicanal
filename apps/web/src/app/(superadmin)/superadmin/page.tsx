@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Building2, FlaskConical, Ban, TrendingUp, User, Handshake } from 'lucide-react';
+import { Card, SkeletonKpiGrid } from '@/components/ui';
 
 interface DashboardData {
   totalTenants: number; activeDemos: number; suspended: number;
@@ -11,10 +13,6 @@ interface DashboardData {
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 function saToken() { return typeof window !== 'undefined' ? (localStorage.getItem('sa_token') ?? '') : ''; }
-
-const KPI_STYLE = { background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '18px 22px' };
-const KPI_VAL = { fontSize: 28, fontWeight: 700, color: '#f1f5f9', margin: '4px 0 0' };
-const KPI_LABEL = { fontSize: 12, color: '#64748b', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.05em' };
 
 export default function SuperAdminDashboardPage() {
   const router = useRouter();
@@ -32,37 +30,42 @@ export default function SuperAdminDashboardPage() {
       .catch(() => setError('Error cargando KPIs'));
   }, [router]);
 
-  if (error) return <div style={{ padding: 32, color: '#ef4444' }}>{error}</div>;
-  if (!data) return <div style={{ padding: 32, color: '#64748b' }}>Cargando...</div>;
+  if (error) return <div className="p-5 lg:p-8 max-w-6xl mx-auto text-red-400">{error}</div>;
+  if (!data) return (
+    <div className="p-5 lg:p-8 max-w-6xl mx-auto">
+      <h1 className="text-2xl font-bold text-text-primary mb-6">Dashboard SaaS</h1>
+      <SkeletonKpiGrid count={6} />
+    </div>
+  );
 
   const kpis = [
-    { label: 'Total Tenants', value: data.totalTenants, icon: '🏢' },
-    { label: 'Demos activas', value: data.activeDemos, icon: '🧪' },
-    { label: 'Suspendidos', value: data.suspended, icon: '🚫' },
-    { label: 'MRR', value: `$${data.mrr.toLocaleString('es-CO')}`, icon: '💰' },
-    { label: 'Total Usuarios', value: data.totalUsers, icon: '👤' },
-    { label: 'Resellers', value: data.totalResellers, icon: '🤝' },
+    { label: 'Total Tenants', value: data.totalTenants, icon: Building2 },
+    { label: 'Demos activas', value: data.activeDemos, icon: FlaskConical },
+    { label: 'Suspendidos', value: data.suspended, icon: Ban },
+    { label: 'MRR', value: `$${data.mrr.toLocaleString('es-CO')}`, icon: TrendingUp },
+    { label: 'Total Usuarios', value: data.totalUsers, icon: User },
+    { label: 'Resellers', value: data.totalResellers, icon: Handshake },
   ];
 
   return (
-    <div style={{ padding: 32, color: '#f1f5f9' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 24px', color: '#f1f5f9' }}>Dashboard SaaS</h1>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
+    <div className="p-5 lg:p-8 max-w-6xl mx-auto text-text-primary">
+      <h1 className="text-2xl font-bold mb-6">Dashboard SaaS</h1>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         {kpis.map((k) => (
-          <div key={k.label} style={KPI_STYLE}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 20 }}>{k.icon}</span>
-              <span style={KPI_LABEL}>{k.label}</span>
+          <Card key={k.label}>
+            <div className="flex items-center gap-2 mb-1">
+              <k.icon className="w-5 h-5 text-text-secondary" />
+              <span className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">{k.label}</span>
             </div>
-            <div style={KPI_VAL}>{k.value}</div>
-          </div>
+            <div className="text-3xl font-bold text-text-primary mt-1">{k.value}</div>
+          </Card>
         ))}
       </div>
-      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 12, padding: '18px 22px' }}>
-        <p style={{ color: '#64748b', fontSize: 13, margin: 0 }}>
+      <Card>
+        <p className="text-sm text-text-secondary">
           Navega usando el menú lateral para gestionar tenants, planes, demos, resellers, monitoreo del VPS y auditoría de acciones.
         </p>
-      </div>
+      </Card>
     </div>
   );
 }

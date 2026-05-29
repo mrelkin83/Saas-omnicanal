@@ -1,5 +1,6 @@
 'use client';
 
+import { Building2 } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Department, type User } from '@/lib/api';
@@ -149,7 +150,7 @@ export default function DepartmentsPage() {
               onClick={() => setExpanded(expanded === dept.id ? null : dept.id)}
               style={{ padding: '14px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
             >
-              <span style={{ fontSize: 20 }}>🏢</span>
+              <span style={{ fontSize: 20 }}><Building2 className="w-4 h-4 inline-block" /></span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{dept.name}</div>
                 {dept.description && <div style={{ fontSize: 12, color: 'var(--muted-foreground)', marginTop: 2 }}>{dept.description}</div>}

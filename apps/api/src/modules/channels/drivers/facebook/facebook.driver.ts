@@ -58,6 +58,7 @@ class FacebookDriver implements IChannelDriver {
             from: msg.senderID,
             text: msg.body,
             timestamp: new Date(parseInt(msg.timestamp, 10)),
+            messageType: 'text',
           }).catch(() => null);
         });
 
@@ -83,8 +84,50 @@ class FacebookDriver implements IChannelDriver {
     const session = this.sessions.get(sessionId);
     if (!session) throw new Error('No active Facebook session');
 
+    let text: string;
+
+    switch (message.type) {
+      case 'text':
+        text = message.text;
+        break;
+
+      case 'button':
+      case 'list': {
+        const options = message.type === 'button'
+          ? message.buttons.map((b, i) => `${i + 1}. ${b.title}`).join('\n')
+          : message.sections.flatMap((s) => s.rows.map((r, i) => `${i + 1}. ${r.title}`)).join('\n');
+        text = `${message.body}\n\n${options}`;
+        break;
+      }
+
+      case 'quick_reply': {
+        const opts = message.options.map((o, i) => `${i + 1}. ${o.title}`).join('\n');
+        text = `${message.text}\n\n${opts}`;
+        break;
+      }
+
+      case 'media': {
+        text = message.caption || '[Media shared]';
+        break;
+      }
+
+      case 'location': {
+        const mapsUrl = `https://maps.google.com/?q=${message.latitude},${message.longitude}`;
+        text = `${message.name ? `${message.name}\n` : ''}${message.address ? `${message.address}\n` : ''}${mapsUrl}`;
+        break;
+      }
+
+      case 'template': {
+        text = `[Template: ${message.templateName}]`;
+        break;
+      }
+
+      default:
+        text = 'Mensaje no soportado en Facebook.';
+    }
+
     return new Promise((resolve, reject) => {
-      session.api.sendMessage({ body: message.text }, to, (err) => {
+      session.api.sendMessage({ body: text }, to, (err) => {
         if (err) reject(err);
         else resolve({ externalId: `fb-${Date.now()}` });
       });
