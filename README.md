@@ -9,17 +9,18 @@ SaaS multi-tenant para negocios colombianos: inbox unificado con WhatsApp, Insta
 | Módulo | Descripción |
 |--------|-------------|
 | **Inbox omnicanal** | Conversaciones unificadas de WhatsApp, Instagram, Facebook y TikTok en un solo panel de 3 columnas con SSE en tiempo real |
-| **Agente de IA** | Pipeline "IA recolecta, sistema ejecuta" — historia → contexto dinámico → knowledge base pgvector → LLM → parser → acción |
-| **Gestión de clientes** | CRM básico con perfil, historial de conversaciones, etiquetas y canal de origen |
-| **Catálogo** | Categorías, productos con variantes, imágenes y stock; filtros y búsqueda |
-| **Citas y reservas** | Agenda con validación de slots, solapamientos y cancelaciones via IA |
-| **Cotizaciones** | Generación de cotizaciones desde la conversación, con PDF descargable |
-| **Pedidos y carrito** | Carrito de compras, pedidos y estados gestionados por IA |
+| **Agente de IA** | Motor MCP (Model Context Protocol) con 8 servidores especializados: catálogo, citas, pedidos, pagos, cotizaciones, reservas, conocimiento y cliente |
+| **MCP AI Engine** | Arquitectura modular donde cada capability tiene su propio servidor MCP interno con Zod validation |
+| **Gestión de clientes** | CRM con perfil, historial de conversaciones, etiquetas, canal de origen y normalización de teléfonos colombianos |
+| **Catálogo** | Categorías, productos con variantes, imágenes y stock; filtros por categoría y búsqueda limitada |
+| **Citas y reservas** | Agenda con validación de slots, solapamientos, cancelaciones via IA y recordatorios automáticos |
+| **Cotizaciones** | Generación de cotizaciones desde la conversación, con seguimiento de estado |
+| **Pedidos y carrito** | Carrito de compras, pedidos con validación de stock, estados gestionados por IA |
 | **Domicilios** | Rastreo de estado de entrega por conversación |
-| **Pagos Wompi** | Links de pago, webhook con verificación HMAC, actualización automática de órdenes |
+| **Pagos Wompi** | Links de pago, webhook con verificación HMAC SHA-256, actualización automática de órdenes por `reference` |
 | **Kanban** | Tablero Drag & Drop (@dnd-kit) para gestión visual de conversaciones |
 | **Multiagente** | Round-robin, departamentos, transferencias, estado de disponibilidad |
-| **Campañas masivas** | BullMQ + rate limit 30 msg/min, hasta 5 variantes, variables `{{nombre}}` |
+| **Campañas masivas** | BullMQ + rate limit 30 msg/min, checkpoints cada 10 mensajes, variables `{{nombre}}` |
 | **Listas de contactos** | CRUD + importación CSV (papaparse, upsert automático) |
 | **Grupos WhatsApp** | Listar y crear grupos via Evolution API |
 | **Integraciones** | CRUD con cifrado AES-256-CBC para campos sensibles (OpenAI, Groq, Wompi, Stripe) |
@@ -32,27 +33,50 @@ SaaS multi-tenant para negocios colombianos: inbox unificado con WhatsApp, Insta
 
 | Componente | Versión |
 |-----------|---------|
-| Node.js | 22 LTS |
+| Node.js | 26.2.0 |
 | TypeScript | 5.x (strict, exactOptionalPropertyTypes) |
-| Fastify | 5.x |
+| Fastify | 4.x |
 | Next.js | 14 (App Router) |
 | PostgreSQL | 16 + pgvector |
 | Redis | 7 |
 | Drizzle ORM | 0.38.x |
 | BullMQ | 5.x |
 | Turborepo | 2.x |
-| pnpm | 10.x |
+| pnpm | 10.26.1 |
 | Python | 3.11 (instagram-bridge) |
-| Docker | 24+ |
+| Docker | 29.5.2 |
 
-**Autenticación:** JWT (`jose`) + refresh tokens en Redis + RBAC (`owner > admin > agent`)  
-**UI:** Tailwind CSS 3.4 + Design System "Obsidian Glass" (modo oscuro/claro)  
+**Autenticación:** JWT (`jose`) + refresh tokens en Redis + RBAC (`owner > admin > agent`) + Zod validation de payload  
+**Seguridad:** @fastify/helmet (CSP), CORS restringido en producción, rate limiting por tenant/IP, Zod error sanitization  
+**UI:** Tailwind CSS 3.4 + Design System "Obsidian Glass" (modo oscuro/claro) + Lucide React icons  
 **Pagos:** Wompi sandbox/producción (Colombia)  
 **WhatsApp:** Evolution API v2.2.3 (Baileys)  
 **Instagram:** instagrapi via FastAPI bridge en Python  
 **Facebook:** fca-unofficial (MQTT listener)  
 **TikTok:** Scraper con polling cada 60s  
-**IA:** OpenAI SDK — soporte OpenAI y Groq via `baseURL`  
+**IA:** OpenAI SDK — soporte OpenAI y Groq via `baseURL`, timeout 15s  
+
+---
+
+## Estado del proyecto
+
+✅ **Auditoría forense completa realizada** — 171 issues identificados y corregidos:
+
+| Severidad | Cantidad | Estado |
+|-----------|----------|--------|
+| CRITICAL | 13 | ✅ Todos corregidos |
+| HIGH | 55 | ✅ Todos corregidos |
+| MEDIUM | 57 | ✅ Todos corregidos |
+| LOW | 29 | ✅ Todos corregidos |
+
+**Correcciones principales:**
+- Race conditions atómicas (Redis multi/exec, `onConflictDoUpdate`, `onConflictDoNothing`)
+- Seguridad: JWT payload validado con Zod, Helmet + CSP, CORS restringido en producción
+- Wompi: firma HMAC verificada, lookup por `reference`, 404 para pagos inexistentes
+- Auth: eliminado token logging, error 23505 en vez de string matching, query acotada en reset-password
+- MCP: productos gratis aceptados, stock validado, fechas futuras obligatorias, JSON extractor robusto
+- Frontend: SSE sin leaks, modal con focus trap, toast errors en todos los catches
+- DB: índices faltantes añadidos en products, orders, appointments, campaigns
 
 ---
 
@@ -65,18 +89,20 @@ saas-omnichannel/
 │   └── db/                # Drizzle schema (20+ tablas), migraciones, seed
 │
 ├── apps/
-│   ├── api/               # Backend Fastify 5 (puerto 3001)
+│   ├── api/               # Backend Fastify 4 (puerto 3001)
 │   │   └── src/
 │   │       ├── modules/   # auth, users, products, customers, conversations,
 │   │       │              #   kanban, departments, campaigns, integrations,
 │   │       │              #   payments, ai, superadmin
-│   │       ├── plugins/   # auth, cors, rate-limit, swagger, tenant
+│   │       ├── mcp/       # 8 MCP servers: catalog, appointments, orders,
+│   │       │              #   payments, quotes, reservations, knowledge, customer
+│   │       ├── plugins/   # auth, cors, helmet, rate-limit, swagger, tenant
 │   │       ├── middleware/ # requireAuth, requireSuperAdmin
 │   │       ├── jobs/      # campaign-sender, reminder, demo-expiry,
-│   │       │              #   instagram-poller, tiktok-scraper
+│   │       │              #   instagram-poller, tiktok-scraper, billing-enforcement
 │   │       ├── channels/  # channel-manager, whatsapp, instagram, facebook, tiktok drivers
-│   │       └── lib/       # llm-client, ai.action-parser, scheduling.engine,
-│   │                      #   evolution-api.client, wompi-client, crypto
+│   │       └── lib/       # llm-client (timeout 15s), evolution-api.client (timeout 10s),
+│   │                      #   wompi-client, crypto, redis
 │   │
 │   ├── web/               # Frontend Next.js 14 (puerto 3000)
 │   │   └── src/app/
@@ -94,6 +120,7 @@ saas-omnichannel/
 │   └── Caddyfile          # HTTPS automático Let's Encrypt
 │
 ├── scripts/
+│   └── install.sh         # Autoinstalador VPS Ubuntu 22.04
 │   └── backup-postgres.sh # Backup diario con gzip + pruning
 │
 ├── .github/workflows/
@@ -102,6 +129,7 @@ saas-omnichannel/
 ├── docker-compose.dev.yml # Infraestructura de desarrollo
 ├── .env.example           # Variables de entorno (plantilla)
 ├── DEPLOY.md              # Guía completa de despliegue en VPS
+├── README.md              # Este archivo
 └── PROGRESO.md            # Registro de avance por fase
 ```
 
@@ -111,7 +139,7 @@ saas-omnichannel/
 
 ### Requisitos
 
-- Node.js 22+
+- Node.js 26+
 - pnpm 10+ (`npm install -g pnpm`)
 - Docker Desktop
 
@@ -153,7 +181,7 @@ pnpm dev
 ```bash
 # Verificar que la API responde
 curl http://localhost:3001/health
-# {"status":"ok","timestamp":"...","version":"0.0.1"}
+# {"ok":true,"timestamp":"...","version":"0.0.1","checks":{"db":{"ok":true},"redis":{"ok":true}}}
 ```
 
 ---
@@ -169,7 +197,8 @@ POSTGRES_USER=saas
 POSTGRES_PASSWORD=CHANGEME
 
 # ─── Redis ───
-REDIS_URL=redis://localhost:6380
+REDIS_PASSWORD=CHANGEME_redis_password
+REDIS_URL=redis://:CHANGEME_redis_password@localhost:6380/0
 
 # ─── Auth ───
 JWT_SECRET=cadena_aleatoria_minimo_32_caracteres
@@ -180,6 +209,11 @@ ENCRYPTION_KEY=clave_de_exactamente_32_bytes_base64==
 # ─── Dominio (producción) ───
 DOMAIN=app.tudominio.co
 API_BASE_URL=https://app.tudominio.co
+WEB_BASE_URL=https://app.tudominio.co
+
+# ─── CORS (producción) ───
+# Coma-separado, sin espacios. Ej: https://app.tudominio.co,https://admin.tudominio.co
+CORS_ALLOWED_ORIGINS=https://app.tudominio.co
 
 # ─── IA ───
 OPENAI_API_KEY=sk-...
@@ -189,15 +223,25 @@ OPENAI_DEFAULT_MODEL=gpt-4o-mini
 EVOLUTION_API_URL=http://evolution-api:8080
 EVOLUTION_API_GLOBAL_KEY=clave_aleatoria
 
-# ─── Pagos (Wompi) ───
-WOMPI_SANDBOX_PUBLIC_KEY=pub_test_...
-WOMPI_SANDBOX_PRIVATE_KEY=prv_test_...
-WOMPI_EVENT_SECRET=...
-WOMPI_ENV=sandbox
+# ─── Instagram Bridge ───
+INSTAGRAM_BRIDGE_URL=http://instagram-bridge:8000
+IG_POLL_INTERVAL_SECONDS=20
+
+# ─── Facebook / TikTok ───
+FB_RATE_LIMIT_PER_MINUTE=15
+TT_POLL_INTERVAL_SECONDS=60
+
+# ─── API ───
+API_PORT=3001
+API_HOST=0.0.0.0
+WEB_PORT=3000
+NODE_ENV=production
+LOG_LEVEL=info
 ```
 
 > Para generar `ENCRYPTION_KEY`: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`  
-> Para generar `JWT_SECRET`: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`
+> Para generar `JWT_SECRET`: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`  
+> Para generar `EVOLUTION_API_GLOBAL_KEY`: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 
 ---
 
@@ -211,7 +255,7 @@ pnpm build
 pnpm --filter @app/api typecheck
 pnpm --filter @app/web typecheck
 
-# Tests unitarios (28 tests, sin BD)
+# Tests unitarios (13 tests, sin BD)
 pnpm --filter @app/api test
 
 # Tests con cobertura
@@ -249,7 +293,7 @@ curl -fsSL https://raw.githubusercontent.com/mrelkin83/Saas-omnicanal/main/scrip
 | 2 | Instala Docker + Docker Compose plugin |
 | 3 | Configura firewall `ufw` (SSH + 80 + 443) |
 | 4 | Clona el repositorio en `/opt/saas` |
-| 5 | Genera `.env` con claves seguras automáticas (JWT, ENCRYPTION_KEY, PostgreSQL password) |
+| 5 | Genera `.env` con claves seguras automáticas (JWT, ENCRYPTION_KEY, PostgreSQL password, Redis password) |
 | 6 | Construye e inicia todos los servicios Docker |
 | 7 | Espera que PostgreSQL y la API estén listos (health checks) |
 | 8 | Ejecuta las migraciones de base de datos |
@@ -274,13 +318,13 @@ curl -fsSL https://raw.githubusercontent.com/mrelkin83/Saas-omnicanal/main/scrip
 
 ```bash
 # Ver estado de todos los servicios
-docker compose -f /opt/saas/docker/docker-compose.yml ps
+docker compose -f /opt/saas/docker/docker-compose.yml --env-file /opt/saas/.env ps
 
 # Ver logs en tiempo real
-docker compose -f /opt/saas/docker/docker-compose.yml logs -f
+docker compose -f /opt/saas/docker/docker-compose.yml --env-file /opt/saas/.env logs -f
 
 # Actualizar a la última versión
-cd /opt/saas && git pull && docker compose -f docker/docker-compose.yml up -d --build api web
+cd /opt/saas && git pull && docker compose -f docker/docker-compose.yml --env-file .env up -d --build api web
 
 # Verificar API
 curl https://app.tudominio.co/api/health
@@ -296,6 +340,7 @@ Ver [`DEPLOY.md`](DEPLOY.md) para la guía completa con cada comando explicado.
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Referencia técnica completa: multi-tenancy, motor de canales, motor de IA, base de datos, jobs, SSE, pagos, módulos API, variables de entorno.
 - [`DEPLOY.md`](DEPLOY.md) — Guía de despliegue en VPS paso a paso.
+- [`PROGRESO.md`](PROGRESO.md) — Registro de avance por fase y auditoría de bugs.
 
 ---
 
@@ -317,52 +362,40 @@ El monitor se actualiza automáticamente cada 10 segundos. Las demos vencidas se
 
 ---
 
-## Arquitectura del Agente de IA
+## Arquitectura del Agente de IA (MCP)
 
-El patrón "IA recolecta, sistema ejecuta" garantiza que la IA nunca escribe directamente en la base de datos:
+El motor de IA usa 8 servidores MCP (Model Context Protocol) internos, cada uno especializado en una capability:
 
 ```
 Mensaje entrante
        ↓
- Historial (últimos 20 msgs)
+ Historial (últimos 10 msgs, append atómico)
        ↓
- Contexto dinámico (tenant, cliente, capabilities)
+ Contexto dinámico (tenant, cliente, capabilities, canal)
        ↓
- Knowledge Base (pgvector cosine distance)
+ Knowledge Base (pgvector cosine distance < 0.6)
        ↓
- LLM (OpenAI / Groq)
+ LLM (OpenAI / Groq, timeout 15s)
        ↓
- Parser → { accion: "CREAR_CITA", params: {...} }
+ Parser MCP → { tool: "createAppointment", params: {...} }
        ↓
- Router → Procesador específico
+ MCP Server específico valida + ejecuta en DB
        ↓
- Procesador valida + ejecuta en DB
-       ↓
- Respuesta al cliente
+ Respuesta natural al cliente
 ```
 
-**Acciones disponibles:** `VER_CATALOGO`, `CREAR_CITA`, `VER_SLOTS`, `COTIZAR`, `CREAR_RESERVA`, `AGREGAR_CARRITO`, `VER_CARRITO`, `CREAR_PEDIDO`, `ENVIAR_PAGO`, `INFO_NEGOCIO`, `ESCALAMIENTO`
+**Servidores MCP disponibles:**
 
----
-
-## Fases de implementación
-
-| Fase | Módulo | Tag |
-|------|--------|-----|
-| 0 | Bootstrap monorepo (Turborepo + pnpm) | `fase-0-completa` |
-| 1 | Modelo de datos + migraciones + seed | `fase-1-completa` |
-| 2 | Auth JWT/Redis + RBAC + API base | `fase-2-completa` |
-| 3 | CRUD dashboard + Design System Obsidian Glass | `fase-3-completa` |
-| 4 | AI Action Engine + pgvector knowledge base | `fase-4-completa` |
-| 5 | WhatsApp via Evolution API + QR SSE | `fase-5-completa` |
-| 6 | Inbox omnicanal + Instagram + Facebook + TikTok | `fase-6-completa` |
-| 7 | Pagos Wompi + Cotizaciones + Reservas + Domicilios | `fase-7-completa` |
-| 8 | Kanban DnD + Multiagente + Departamentos | `fase-8-completa` |
-| 9 | Campañas masivas + Contactos CSV + Integraciones | `fase-9-completa` |
-| 10 | Panel SuperAdmin SaaS independiente | `fase-10-completa` |
-| 11 | Producción: Docker multi-stage + CI + Tests + Backups | `fase-11-completa` |
-
-Ver [`PROGRESO.md`](PROGRESO.md) para el detalle completo de cada fase.
+| Servidor | Tools | Capability |
+|----------|-------|------------|
+| `catalog` | listProducts, getProduct | `catalog` |
+| `appointments` | createAppointment, listAppointments, cancelAppointment | `appointments` |
+| `orders` | addToCart, viewCart, createOrder | `cart_orders` |
+| `payments` | createPaymentLink | `payments` |
+| `quotes` | createQuote, getMyQuotes | `quotes` |
+| `reservations` | createReservation, listReservations | `reservations` |
+| `knowledge` | searchKnowledge, getBusinessHours | (siempre disponible) |
+| `customer` | getCustomerInfo, updateCustomer | (siempre disponible) |
 
 ---
 
@@ -370,9 +403,10 @@ Ver [`PROGRESO.md`](PROGRESO.md) para el detalle completo de cada fase.
 
 | Job | Frecuencia | Función |
 |-----|-----------|---------|
-| `campaign-sender` | On-demand (BullMQ) | Envío masivo con rate limit 30 msg/min y delay anti-ban 2–8s |
+| `campaign-sender` | On-demand (BullMQ) | Envío masivo con rate limit 30 msg/min, checkpoints cada 10 msgs |
 | `reminder` | Cada hora | Recordatorios WhatsApp 24h antes de citas confirmadas |
 | `demo-expiry` | Cada hora | Suspende tenants demo cuya fecha de expiración ya pasó |
+| `billing-enforcement` | Cada hora | Suspende tenants con suscripción vencida (grace period 3 días) |
 | `instagram-poller` | Cada 20s | Poll de DMs de Instagram via bridge Python |
 | `tiktok-scraper` | Cada 60s | Scraping de comentarios/DMs de TikTok |
 | `channel-send` (BullMQ) | On-demand | Cola de mensajes diferidos cuando WhatsApp supera 30 msg/min |
@@ -382,16 +416,28 @@ Ver [`PROGRESO.md`](PROGRESO.md) para el detalle completo de cada fase.
 ## Tests
 
 ```bash
-# Ejecutar los 28 tests unitarios
+# Ejecutar los tests unitarios
 pnpm --filter @app/api test
 
-# Con cobertura (umbral: 80% líneas y funciones)
+# Con cobertura
 pnpm --filter @app/api test:coverage
 ```
 
 **Cobertura actual:** `auth.service`, `ai.action-parser`, `lib/crypto` — sin dependencia de base de datos (mocks via `vi.mock`).
 
 CI corre automáticamente en cada push a GitHub: typecheck + tests + docker build.
+
+---
+
+## Changelog reciente
+
+### 2026-05-29 — Auditoría forense y hardening completo
+- 171 bugs corregidos (13 CRITICAL + 55 HIGH + 57 MEDIUM + 29 LOW)
+- MCP AI Engine con 8 servidores especializados
+- Rate limiting atómico, race conditions eliminadas
+- Seguridad: Helmet, CORS restringido, JWT Zod validation
+- Frontend: SSE sin leaks, modal a11y, toast errors universal
+- DB: índices estratégicos añadidos
 
 ---
 

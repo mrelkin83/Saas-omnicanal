@@ -54,7 +54,7 @@ docker compose version
 
 ```bash
 cd /opt
-git clone <URL_DEL_REPO> saas
+git clone https://github.com/mrelkin83/Saas-omnicanal saas
 cd saas
 ```
 
@@ -73,12 +73,14 @@ Valores obligatorios a cambiar:
 |----------|-------------|
 | `DOMAIN` | Dominio real (ej. `app.tudominio.co`) |
 | `POSTGRES_PASSWORD` | Contraseña fuerte para PostgreSQL |
+| `REDIS_PASSWORD` | Contraseña fuerte para Redis |
 | `JWT_SECRET` | Al menos 32 caracteres aleatorios |
 | `ENCRYPTION_KEY` | 32 bytes en base64: `openssl rand -base64 32` |
 | `EVOLUTION_API_GLOBAL_KEY` | Clave aleatoria para Evolution API |
 | `OPENAI_API_KEY` | API key de OpenAI o Groq |
 | `API_BASE_URL` | `https://<DOMAIN>` |
 | `WEB_BASE_URL` | `https://<DOMAIN>` |
+| `CORS_ALLOWED_ORIGINS` | Dominios permitidos para CORS en producción (ej. `https://app.tudominio.co`) |
 
 Generar valores seguros:
 ```bash
@@ -89,6 +91,9 @@ openssl rand -base64 48
 openssl rand -base64 32
 
 # EVOLUTION_API_GLOBAL_KEY
+openssl rand -hex 32
+
+# REDIS_PASSWORD
 openssl rand -hex 32
 ```
 
@@ -109,26 +114,28 @@ Espera la propagación (puede tardar hasta 10 minutos).
 
 ```bash
 # Desde la raíz del repo, construir e iniciar
-docker compose -f docker/docker-compose.yml up -d --build
+docker compose -f docker/docker-compose.yml --env-file .env up -d --build
 
 # Ver logs en tiempo real
-docker compose -f docker/docker-compose.yml logs -f api web
+docker compose -f docker/docker-compose.yml --env-file .env logs -f api web
 ```
 
-El primer build puede tomar 5–10 minutos. Caddy obtendrá el certificado TLS automáticamente.
+El primer build puede tomar 10–20 minutos. Caddy obtendrá el certificado TLS automáticamente.
 
 ---
 
 ## 6. Ejecutar migraciones de base de datos
 
-```bash
-# Dentro del contenedor API, ejecutar migraciones
-docker compose -f docker/docker-compose.yml exec api \
-  node -e "import('./dist/packages/db/src/migrate.js').then(m => m.runMigrations())"
+Las migraciones corren automáticamente al iniciar el API (`runMigrations()` en `server.ts`). Si necesitas ejecutarlas manualmente:
 
-# O si tienes acceso al host con pnpm instalado:
-DATABASE_URL="postgresql://saas:<PASSWORD>@localhost:5432/saas_omnichannel" \
-  pnpm --filter @saas/db db:migrate
+```bash
+# Dentro del contenedor API
+docker compose -f docker/docker-compose.yml --env-file .env exec api \
+  node dist/server.js --migrate-only
+
+# O verificar que las tablas existen
+docker compose -f docker/docker-compose.yml --env-file .env exec postgres \
+  psql -U saas -d saas_omnichannel -c "\dt"
 ```
 
 ---
@@ -136,7 +143,7 @@ DATABASE_URL="postgresql://saas:<PASSWORD>@localhost:5432/saas_omnichannel" \
 ## 7. Crear el primer superadmin
 
 ```bash
-docker compose -f docker/docker-compose.yml exec api \
+docker compose -f docker/docker-compose.yml --env-file .env exec api \
   node dist/scripts/create-superadmin.js admin@tudominio.co "ContrasenaSegura123!" "Super Admin"
 ```
 
@@ -167,6 +174,8 @@ curl -s https://app.tudominio.co/api/superadmin/monitor/health \
 
 ## 9. Configurar backups automáticos
 
+El `docker-compose.yml` de producción ya incluye un contenedor `backup` que realiza dumps diarios automáticos. Si prefieres usar el script de backup en el host:
+
 ```bash
 # Copiar script
 cp scripts/backup-postgres.sh /opt/scripts/
@@ -175,7 +184,9 @@ chmod +x /opt/scripts/backup-postgres.sh
 # Agregar cron (backup a las 2am todos los días)
 crontab -e
 # Añadir:
-# 0 2 * * * POSTGRES_USER=saas POSTGRES_DB=saas_omnichannel /opt/scripts/backup-postgres.sh
+# 0 2 * * * PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+#   POSTGRES_USER=saas POSTGRES_DB=saas_omnichannel \
+#   /opt/scripts/backup-postgres.sh >> /var/log/pg-backup.log 2>&1
 
 # Verificar manual
 /opt/scripts/backup-postgres.sh
@@ -189,7 +200,7 @@ ls -lh /var/backups/postgres/
 ### Pre-update: verificar estado actual
 ```bash
 # Confirmar que todo está healthy antes de actualizar
-curl -s https://TU_DOMINIO/health | jq .
+curl -s https://TU_DOMINIO/api/health | jq .
 
 # Guardar commit actual como punto de rollback
 ROLLBACK=$(git -C /opt/saas rev-parse HEAD)
@@ -209,21 +220,38 @@ docker compose -f docker/docker-compose.yml --env-file .env up -d --build api we
 ```bash
 # Esperar ~30s a que los contenedores pasen el healthcheck
 sleep 30
-curl -s https://TU_DOMINIO/health | jq .
+curl -s https://TU_DOMINIO/api/health | jq .
 # Respuesta esperada: { "ok": true, "checks": { "db": { "ok": true }, "redis": { "ok": true } } }
 
 # Ver logs si algo falla
-docker compose -f docker/docker-compose.yml logs -f --tail=50
+docker compose -f docker/docker-compose.yml --env-file .env logs -f --tail=50
 ```
 
 ### Rollback (si el update falló)
 ```bash
 git -C /opt/saas checkout $ROLLBACK
 docker compose -f docker/docker-compose.yml --env-file .env up -d --build api web
-sleep 30 && curl -s https://TU_DOMINIO/health | jq .
+sleep 30 && curl -s https://TU_DOMINIO/api/health | jq .
 ```
 
 > **NUNCA uses `docker compose down -v` en producción** — el flag `-v` elimina los volúmenes de datos (PostgreSQL, Redis). Para detener servicios sin perder datos: `docker compose stop` o `docker compose down` (sin `-v`).
+
+---
+
+## Checklist de seguridad pre-despliegue
+
+| # | Verificación | Comando/Acción |
+|---|-------------|----------------|
+| 1 | `JWT_SECRET` ≥ 32 caracteres | `wc -c <<< $JWT_SECRET` |
+| 2 | `ENCRYPTION_KEY` es base64 válido de 32 bytes | Verificar decodifica correctamente |
+| 3 | `NODE_ENV=production` | `docker compose exec api env \| grep NODE_ENV` |
+| 4 | `CORS_ALLOWED_ORIGINS` configurado | Verificar `.env` |
+| 5 | Redis tiene contraseña | `redis-cli -a $REDIS_PASSWORD ping` |
+| 6 | PostgreSQL contraseña fuerte | No usar valores por defecto |
+| 7 | Firewall solo 22/80/443 | `ufw status` |
+| 8 | Backups configurados | Verificar `/var/backups/postgres/` |
+| 9 | Certificado TLS activo | `curl -vI https://TU_DOMINIO` |
+| 10 | Healthcheck API responde | `curl https://TU_DOMINIO/api/health` |
 
 ---
 
@@ -231,20 +259,23 @@ sleep 30 && curl -s https://TU_DOMINIO/health | jq .
 
 ```bash
 # Reiniciar un servicio
-docker compose -f docker/docker-compose.yml restart api
+docker compose -f docker/docker-compose.yml --env-file .env restart api
 
 # Ver estado de todos los contenedores
-docker compose -f docker/docker-compose.yml ps
+docker compose -f docker/docker-compose.yml --env-file .env ps
 
 # Acceder a la base de datos
-docker compose -f docker/docker-compose.yml exec postgres \
+docker compose -f docker/docker-compose.yml --env-file .env exec postgres \
   psql -U saas -d saas_omnichannel
 
-# Listar backups
-ls -lh /var/backups/postgres/
+# Listar backups del contenedor backup
+ls -lh /var/lib/docker/volumes/saas_backups/_data/
 
 # Ver uso de disco y RAM
 df -h && free -h
+
+# Escalar logs de un servicio específico
+docker compose -f docker/docker-compose.yml --env-file .env logs --tail=100 api
 ```
 
 ---
@@ -254,12 +285,20 @@ df -h && free -h
 **Caddy no obtiene certificado TLS:**
 - Verificar que el DNS apunta al VPS: `dig app.tudominio.co`
 - Verificar que los puertos 80 y 443 están abiertos: `ufw allow 80 && ufw allow 443`
-- Ver logs de Caddy: `docker compose -f docker/docker-compose.yml logs caddy`
+- Ver logs de Caddy: `docker compose -f docker/docker-compose.yml --env-file .env logs caddy`
 
 **API no conecta a PostgreSQL:**
-- Verificar variables de entorno: `docker compose -f docker/docker-compose.yml exec api env | grep DATABASE`
-- Verificar que postgres está healthy: `docker compose -f docker/docker-compose.yml ps postgres`
+- Verificar variables de entorno: `docker compose -f docker/docker-compose.yml --env-file .env exec api env | grep DATABASE`
+- Verificar que postgres está healthy: `docker compose -f docker/docker-compose.yml --env-file .env ps postgres`
 
 **WhatsApp QR no aparece:**
-- Verificar Evolution API: `docker compose -f docker/docker-compose.yml logs evolution-api`
+- Verificar Evolution API: `docker compose -f docker/docker-compose.yml --env-file .env logs evolution-api`
 - La URL del webhook debe ser accesible desde Evolution API: `http://api:3001/api/webhooks/evolution`
+
+**Redis AUTH failed:**
+- Verificar que `REDIS_PASSWORD` en `.env` coincide con el valor usado en `docker-compose.yml`
+- El contenedor Redis usa `--requirepass`, por lo que la contraseña es obligatoria
+
+---
+
+*Última actualización: 2026-05-29*

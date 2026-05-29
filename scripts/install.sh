@@ -236,6 +236,9 @@ API_HOST=0.0.0.0
 WEB_PORT=3000
 NODE_ENV=production
 LOG_LEVEL=info
+
+# CORS — restringido en producción
+CORS_ALLOWED_ORIGINS=https://${DOMAIN}
 ENVFILE
   chmod 600 "$INSTALL_DIR/.env"
   log ".env generado con claves seguras"

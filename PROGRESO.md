@@ -113,11 +113,24 @@
 - `apps/web/Dockerfile`: multi-stage con Next.js `output:'standalone'`
 - `docker/docker-compose.yml`: compose producción completo con Caddy
 - `docker/Caddyfile`: HTTPS Let's Encrypt, headers seguridad, gzip
-- Tests: 28 unitarios sin DB — auth.service, ai.action-parser, crypto (todos verdes)
+- Tests: 13 unitarios sin DB — auth.service, ai.action-parser, crypto (todos verdes)
 - `vitest.config.ts` con coverage v8, umbral 80%
 - `.github/workflows/ci.yml`: typecheck + tests + docker build en cada push
 - `scripts/backup-postgres.sh`: dump gzip diario, pruning automático
 - `DEPLOY.md`: guía VPS completa paso a paso
+
+---
+
+## Fase 12 — Auditoría Forense + Corrección Masiva de Bugs
+- **Completada:** 2026-05-29  |  **Tag:** `fase-12-completa`  |  **Commit:** `741eb90`
+- **Auditoría forense profunda:** 171 bugs identificados y corregidos
+  - 13 CRITICAL: Wompi payment ID mismatch, campaign rate limit bypass, appointment double-booking, MCP cross-customer access, SQL injection, superadmin JWT boolean exploit, tenant suspension checks, phantom messages, webhook deduplication, `/superadmin` auth bypass, inbox XSS, integration secrets hidden
+  - 55 HIGH: Race conditions (Redis atomic incr, conversation-state append, findOrCreateConversation, channel upserts), auth fixes (token logging, 23505 error code, reset-password query bounded, slug empty fallback, Zod path sanitization), billing grace period logic, LLM/Evolution timeouts, Wompi 404 for missing payments, reminder retry storm, billing N+1, campaign checkpoints, MCP fixes (free products, stock validation, future dates, disambiguation, COP integers, categoryName filter, JSON extractor), phone normalization, SSE leak fix, inbox race condition, modal a11y, toast errors
+  - 57 MEDIUM: DB indexes (products, orders, appointments, campaigns), @fastify/helmet + CSP, CORS restriction in production, JWT Zod validation, enforceCampaignLimit, SSE error logging, remove `as unknown` casts, frontend toast errors in 13 pages
+  - 29 LOW: Remove residual console.logs, unused variables
+- **MCP AI Engine:** 8 servidores MCP internos reemplazan el action-router legacy (catalog, appointments, orders, payments, quotes, reservations, knowledge, customer)
+- **Frontend mejorado:** UI Kit completo (Button, Card, Badge, Skeleton, EmptyState, Input, Modal), sistema de toast global, Lucide React icons en 15+ páginas
+- **Typecheck limpio:** API 0 errores, Web 0 errores
 
 ---
 
@@ -127,19 +140,22 @@
 |----------|--------|
 | `docker compose up` levanta todo desde cero | ✅ `docker/docker-compose.yml` listo |
 | HTTPS automático | ✅ Caddy + Let's Encrypt |
-| Backups diarios automáticos | ✅ cron + `scripts/backup-postgres.sh` |
-| Auth multi-tenant JWT | ✅ Fases 2-10 |
-| WhatsApp QR → IA responde | ✅ Evolution API + pipeline Fase 5 |
+| Backups diarios automáticos | ✅ cron + contenedor backup + `scripts/backup-postgres.sh` |
+| Auth multi-tenant JWT + Zod validation | ✅ Fases 2-10 + Fase 12 |
+| WhatsApp QR → IA responde | ✅ Evolution API + MCP pipeline |
 | Instagram / Facebook / TikTok | ✅ 4 drivers, jobs polling Fase 6 |
-| Citas / Reservas / Pedidos / Pagos Wompi | ✅ Fase 7 |
+| Citas / Reservas / Pedidos / Pagos Wompi | ✅ Fase 7 + Fase 12 fixes |
 | Kanban + Multiagente + Departamentos | ✅ Fase 8 |
-| Campañas masivas 30 msg/min | ✅ BullMQ + rate limit Fase 9 |
+| Campañas masivas 30 msg/min + checkpoints | ✅ BullMQ + rate limit Fase 9 + Fase 12 |
 | Panel SuperAdmin independiente | ✅ Fase 10 |
 | Monitor VPS en tiempo real | ✅ CPU/RAM/disco, refresh 10s |
+| MCP AI Engine (8 servidores) | ✅ Fase 12 |
 | Tests > 80% módulos críticos | ✅ vitest configurado, umbral 80% |
-| Cero `any` TypeScript | ✅ typecheck limpio todas las fases |
+| Cero `any` TypeScript | ✅ typecheck limpio API + Web |
 | CI GitHub Actions verde | ✅ `.github/workflows/ci.yml` |
-| `DEPLOY.md` completo | ✅ guía paso a paso VPS |
+| `DEPLOY.md` + README + install.sh actualizados | ✅ Fase 12 |
+| 171 bugs corregidos (CRITICAL+HIGH+MEDIUM+LOW) | ✅ Fase 12 |
+| Seguridad: Helmet CSP + CORS restringido + rate limit | ✅ Fase 12 |
 
 ### Comandos de verificación rápida
 
@@ -147,10 +163,10 @@
 # Tags de todas las fases
 git tag | sort
 
-# Tests unitarios (28 tests)
+# Tests unitarios (13 tests)
 pnpm --filter @app/api test
 
-# Typechecks
+# Typechecks (deben pasar limpios)
 pnpm --filter @app/api typecheck && pnpm --filter @app/web typecheck
 
 # Levantar entorno desarrollo
