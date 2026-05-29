@@ -77,7 +77,7 @@ export async function wompiWebhookHandler(
 
   // Reject if payment doesn't belong to this tenant
   if (!payment || payment.tenantId !== tenantId) {
-    reply.status(200).send({ ok: true });
+    reply.status(404).send({ error: 'Not Found' });
     return;
   }
 

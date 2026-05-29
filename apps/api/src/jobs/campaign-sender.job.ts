@@ -91,6 +91,10 @@ async function runCampaign(campaignId: string, tenantId: string): Promise<void> 
       failed++;
     }
 
+    if ((i + 1) % 10 === 0) {
+      await db.update(campaigns).set({ sentCount: sent, failedCount: failed, updatedAt: new Date() }).where(eq(campaigns.id, campaignId));
+    }
+
     if (i < contacts.length - 1) {
       await new Promise((r) => setTimeout(r, randomDelayMs()));
     }

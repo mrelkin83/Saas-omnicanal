@@ -1,16 +1,24 @@
 import { db, conversations, messages, customers, channelSessions, eq, and, ilike, sql } from '@saas/db';
 
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('57') && digits.length === 12) return digits;
+  if (digits.startsWith('3') && digits.length === 10) return '57' + digits;
+  return phone;
+}
+
 export async function findOrCreateCustomer(tenantId: string, phone: string) {
+  const normalizedPhone = normalizePhone(phone);
   const [existing] = await db
     .select()
     .from(customers)
-    .where(and(eq(customers.tenantId, tenantId), ilike(customers.phone, phone)));
+    .where(and(eq(customers.tenantId, tenantId), ilike(customers.phone, normalizedPhone)));
 
   if (existing) return existing;
 
   const [created] = await db
     .insert(customers)
-    .values({ tenantId, phone, displayName: phone })
+    .values({ tenantId, phone: normalizedPhone, displayName: normalizedPhone })
     .returning();
   return created!;
 }
@@ -26,14 +34,6 @@ export async function findOrCreateConversation(
     eq(conversations.customerId, customerId),
     eq(conversations.channel, channel),
   ];
-
-  const [existing] = await db
-    .select()
-    .from(conversations)
-    .where(and(...conditions))
-    .limit(1);
-
-  if (existing) return existing;
 
   const sessionConditions = [eq(channelSessions.tenantId, tenantId), eq(channelSessions.channel, channel)];
   let resolvedSessionId = channelSessionId;
@@ -52,8 +52,17 @@ export async function findOrCreateConversation(
       status: 'open',
       lastMessageAt: new Date(),
     })
+    .onConflictDoNothing()
     .returning();
-  return created!;
+
+  if (created) return created;
+
+  const [existing] = await db
+    .select()
+    .from(conversations)
+    .where(and(...conditions))
+    .limit(1);
+  return existing!;
 }
 
 export async function saveInboundMessage(

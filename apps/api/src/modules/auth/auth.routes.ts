@@ -68,8 +68,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         ...tokens,
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error creating tenant';
-      if (msg.includes('unique')) {
+      if (typeof err === 'object' && err !== null && 'code' in err && (err as any).code === '23505') {
         return reply.status(409).send({ error: 'Conflict', message: 'El email o slug ya existe', code: 'CONFLICT' });
       }
       throw err;
@@ -92,8 +91,6 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       expiresAt,
     });
 
-    console.log(`[auth] Password reset token for ${email}: ${rawToken}`);
-
     return reply.status(200).send({ ok: true, message: 'Si el email existe, recibirás instrucciones' });
   });
 
@@ -104,12 +101,13 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     }).parse(request.body);
 
     const now = new Date();
-    const allTokens = await db.select().from(passwordResetTokens)
-      .where(and(isNull(passwordResetTokens.usedAt), gt(passwordResetTokens.expiresAt, now)));
+    const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+    const candidates = await db.select().from(passwordResetTokens)
+      .where(and(isNull(passwordResetTokens.usedAt), gt(passwordResetTokens.expiresAt, now), gt(passwordResetTokens.createdAt, twoHoursAgo)));
 
     let matchedUserId: string | null = null;
     let matchedTokenId: string | null = null;
-    for (const t of allTokens) {
+    for (const t of candidates) {
       const valid = await bcrypt.compare(token, t.tokenHash);
       if (valid) {
         matchedUserId = t.userId;

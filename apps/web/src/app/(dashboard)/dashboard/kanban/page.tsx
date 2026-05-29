@@ -13,6 +13,7 @@ import {
 import { useDroppable, useDraggable } from '@dnd-kit/core';
 import { useAuthStore } from '@/store/auth';
 import { api, type KanbanColumn, type KanbanConversation } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 const CHANNEL_ICONS: Record<string, string> = {
   whatsapp: '💬', instagram: '📸', facebook: '📘', tiktok: '🎵',
@@ -127,7 +128,9 @@ function NewColumnModal({ onClose, onCreated, token }: { onClose: () => void; on
       await api.kanban.createColumn(token, { name: name.trim(), color });
       onCreated();
       onClose();
-    } catch { /* ignore */ } finally { setSaving(false); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error creando columna');
+    } finally { setSaving(false); }
   };
 
   return (
@@ -182,7 +185,9 @@ export default function KanbanPage() {
         map.set(col.id, col.conversations ?? []);
       }
       setConvsByColumn(map);
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error inesperado');
+    } finally { setLoading(false); }
   }, [accessToken]);
 
   useEffect(() => { void loadBoard(); }, [loadBoard]);
@@ -203,7 +208,9 @@ export default function KanbanPage() {
     try {
       await api.kanban.move(accessToken, { conversationId: convId, columnId: targetColId });
       await loadBoard();
-    } catch { /* ignore */ }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error inesperado');
+    }
   };
 
   const allConvs = [...unassigned, ...[...convsByColumn.values()].flat()];

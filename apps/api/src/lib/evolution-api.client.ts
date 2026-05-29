@@ -8,6 +8,7 @@ async function evoRequest<T>(method: string, path: string, body?: unknown): Prom
       'Content-Type': 'application/json',
       apikey: GLOBAL_KEY,
     },
+    signal: AbortSignal.timeout(10000),
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
 

@@ -20,7 +20,9 @@ export const channelSessions = pgTable('channel_sessions', {
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (t) => [
+  uniqueIndex('channel_sessions_tenant_channel_idx').on(t.tenantId, t.channel),
+]);
 
 export const conversations = pgTable('conversations', {
   id: uuid('id').primaryKey().defaultRandom(),

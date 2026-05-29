@@ -60,7 +60,7 @@ export async function callLLM(messages: LLMMessage[], opts: LLMOptions): Promise
     messages,
     temperature: opts.temperature ?? 0.7,
     max_tokens: opts.maxTokens ?? 500,
-  });
+  }, { timeout: 15000 });
 
   return response.choices[0]?.message?.content ?? '';
 }

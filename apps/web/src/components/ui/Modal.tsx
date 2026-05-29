@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/ui/cn';
 import { X } from 'lucide-react';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, useCallback, type ReactNode } from 'react';
 
 interface ModalProps {
   isOpen: boolean;
@@ -14,10 +14,16 @@ interface ModalProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
+const FOCUSABLE_SELECTOR = 'a, button, input, textarea, select, details, [tabindex]:not([tabindex="-1"])';
+
 export function Modal({ isOpen, onClose, title, description, children, footer, size = 'md' }: ModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      const firstFocusable = modalRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      firstFocusable?.focus();
     } else {
       document.body.style.overflow = '';
     }
@@ -26,18 +32,48 @@ export function Modal({ isOpen, onClose, title, description, children, footer, s
     };
   }, [isOpen]);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      onClose();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+
+    const focusable = modalRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+    if (!focusable || focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, [onClose]);
+
   if (!isOpen) return null;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={onClose}
+      onKeyDown={handleKeyDown}
+      role="dialog"
+      aria-modal="true"
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
       {/* Modal */}
       <div
+        ref={modalRef}
         className={cn(
           'relative w-full rounded-xl border border-border-default bg-bg-surface-1 shadow-lg',
           'animate-in fade-in zoom-in-95 duration-200',

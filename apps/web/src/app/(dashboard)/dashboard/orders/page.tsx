@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Order } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 const STATUS_FLOW: Record<string, { next: string; label: string; color: string } | undefined> = {
   pending:    { next: 'confirmed',   label: 'Confirmar',      color: '#3b82f6' },
@@ -40,7 +41,11 @@ export default function OrdersPage() {
     if (!accessToken) return;
     setLoading(true);
     api.orders.list(accessToken, filter !== 'all' ? { status: filter } : {})
-      .then(setOrders).catch(() => null).finally(() => setLoading(false));
+      .then(setOrders)
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : 'Error inesperado');
+      })
+      .finally(() => setLoading(false));
   };
 
   useEffect(load, [accessToken, filter]);
@@ -52,7 +57,9 @@ export default function OrdersPage() {
     try {
       const updated = await api.orders.patch(accessToken, order.id, { status: next.next });
       setOrders((prev) => prev.map((o) => o.id === order.id ? { ...o, ...updated } : o));
-    } catch { /* ignore */ } finally { setUpdating(null); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error inesperado');
+    } finally { setUpdating(null); }
   };
 
   const statuses = ['all', 'pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled'];

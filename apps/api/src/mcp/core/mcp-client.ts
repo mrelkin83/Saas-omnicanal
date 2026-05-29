@@ -6,6 +6,59 @@ interface ToolInvocation {
   params: Record<string, unknown>;
 }
 
+function extractAllJsonObjects(text: string): string[] {
+  const objects: string[] = [];
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let start = -1;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === '{') {
+      if (depth === 0) {
+        start = i;
+      }
+      depth++;
+      continue;
+    }
+
+    if (ch === '}') {
+      if (depth > 0) {
+        depth--;
+        if (depth === 0 && start !== -1) {
+          objects.push(text.slice(start, i + 1));
+          start = -1;
+        }
+      }
+      continue;
+    }
+  }
+
+  return objects;
+}
+
 /**
  * Parsea una invocación de herramienta desde la respuesta del LLM.
  * Soporta múltiples formatos:
@@ -13,25 +66,23 @@ interface ToolInvocation {
  * - {"accion": "nombre", "params": {...}} (legacy)
  */
 export function parseToolInvocation(text: string): ToolInvocation | null {
-  const patterns = [
-    /\{\s*"tool"\s*:\s*"([^"]+)"\s*,\s*"params"\s*:\s*(\{[\s\S]*?\})\s*\}/,
-    /\{\s*"accion"\s*:\s*"([^"]+)"\s*,\s*"params"\s*:\s*(\{[\s\S]*?\})\s*\}/,
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match) {
-      try {
-        const toolName = match[1]!;
-        const params = JSON.parse(match[2]!);
-        return { tool: toolName, params };
-      } catch {
-        // invalid JSON, try next
+  // Robust brace-depth extraction for nested JSON
+  const objects = extractAllJsonObjects(text);
+  for (const jsonText of objects) {
+    try {
+      const parsed = JSON.parse(jsonText) as Record<string, unknown>;
+      if (typeof parsed.tool === 'string') {
+        return { tool: parsed.tool, params: (parsed.params as Record<string, unknown>) ?? {} };
       }
+      if (typeof parsed.accion === 'string') {
+        return { tool: parsed.accion, params: (parsed.params as Record<string, unknown>) ?? {} };
+      }
+    } catch {
+      // invalid JSON, try next object
     }
   }
 
-  // Try to parse the entire response as JSON
+  // Fallback: try to parse the entire response as JSON
   try {
     const parsed = JSON.parse(text.trim()) as Record<string, unknown>;
     if (typeof parsed.tool === 'string') {
@@ -117,14 +168,16 @@ export async function executeToolChain(
   const results: MCPExecuteResult[] = [];
   let currentText = llmResponse;
 
-  // Try to find multiple tool invocations in the response
-  const toolPattern = /\{\s*"(?:tool|accion)"\s*:\s*"([^"]+)"\s*,\s*"params"\s*:\s*(\{[\s\S]*?\})\s*\}/g;
-  let match: RegExpExecArray | null;
-
-  while ((match = toolPattern.exec(currentText)) !== null) {
+  // Try to find multiple tool invocations in the response using brace-depth extraction
+  const jsonObjects = extractAllJsonObjects(currentText);
+  for (const jsonText of jsonObjects) {
+    let toolName: string | null = null;
     try {
-      const toolName = match[1]!;
-      const params = JSON.parse(match[2]!);
+      const parsed = JSON.parse(jsonText) as Record<string, unknown>;
+      toolName = ((parsed.tool as string) || (parsed.accion as string)) ?? null;
+      if (!toolName || typeof toolName !== 'string') continue;
+
+      const params = (parsed.params as Record<string, unknown>) ?? {};
       const found = findTool(toolName);
 
       if (!found) {
@@ -154,7 +207,7 @@ export async function executeToolChain(
       results.push({
         success: false,
         result: `Error: ${message}`,
-        toolName: match[1] ?? null,
+        toolName,
       });
     }
   }

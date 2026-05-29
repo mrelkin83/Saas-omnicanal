@@ -115,7 +115,10 @@ export default function ChannelsPage() {
       const res = await api.channels.getQR(accessToken);
       setQrCode(res.qrCode);
       setWaModalState('has_qr');
-    } catch { setWaModalState('waiting_qr'); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error actualizando QR');
+      setWaModalState('waiting_qr');
+    }
   }
 
   async function disconnectChannel(ch: ChannelKey) {

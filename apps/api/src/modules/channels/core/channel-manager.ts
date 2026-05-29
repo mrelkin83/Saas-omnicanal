@@ -26,8 +26,8 @@ export function onIncomingMessage(channel: ChannelType, handler: (msg: Normalize
 
 async function whatsappRateCheck(instanceId: string): Promise<{ allowed: boolean; delayMs: number }> {
   const key = `rl:wa:${instanceId}`;
-  const count = await redis.incr(key);
-  if (count === 1) await redis.expire(key, 60);
+  const results = await redis.multi().incr(key).expire(key, 60).exec();
+  const count = (results?.[0] as [Error | null, number] | undefined)?.[1] ?? 0;
   if (count > WHATSAPP_MAX_PER_MINUTE) {
     const ttl = await redis.ttl(key);
     return { allowed: false, delayMs: ((ttl > 0 ? ttl : 60) * 1000) + 500 };

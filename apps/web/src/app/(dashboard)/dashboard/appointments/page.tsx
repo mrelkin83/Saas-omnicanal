@@ -4,6 +4,7 @@ import { CalendarDays } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Appointment } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 const STATUS_LABELS: Record<string, string> = {
   confirmed: 'Confirmada', cancelled: 'Cancelada', completed: 'Completada',
@@ -24,7 +25,12 @@ export default function AppointmentsPage() {
   const load = () => {
     if (!accessToken) return;
     setLoading(true);
-    api.appointments.list(accessToken).then(setAppointments).catch(() => null).finally(() => setLoading(false));
+    api.appointments.list(accessToken)
+      .then(setAppointments)
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : 'Error inesperado');
+      })
+      .finally(() => setLoading(false));
   };
 
   useEffect(load, [accessToken]);
@@ -35,7 +41,9 @@ export default function AppointmentsPage() {
     try {
       const updated = await api.appointments.patch(accessToken, id, { status });
       setAppointments((prev) => prev.map((a) => a.id === id ? { ...a, ...updated } : a));
-    } catch { /* ignore */ } finally { setUpdating(null); }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error inesperado');
+    } finally { setUpdating(null); }
   };
 
   const statuses = ['all', 'pending', 'confirmed', 'completed', 'cancelled', 'no_show'];

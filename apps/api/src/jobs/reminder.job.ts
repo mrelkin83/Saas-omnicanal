@@ -56,13 +56,13 @@ async function sendAppointmentReminders(): Promise<void> {
         `¿Confirmas tu asistencia? Responde *SI* o *NO*`;
 
       try {
-        await sendMessage(row.tenantId, 'whatsapp', row.customerPhone, { type: 'text', text });
         await db
           .update(appointments)
           .set({ reminderSent: true, updatedAt: new Date() })
           .where(eq(appointments.id, row.id));
+        await sendMessage(row.tenantId, 'whatsapp', row.customerPhone, { type: 'text', text });
       } catch {
-        // Channel not connected or send failed — skip silently, retry next cycle
+        // Channel not connected or send failed — skip silently, already marked
       }
     }
   } catch {

@@ -1,4 +1,4 @@
-import { db, conversationState, eq, and } from '@saas/db';
+import { db, conversationState, eq, and, sql } from '@saas/db';
 
 export interface HistoryMessage {
   role: 'user' | 'assistant';
@@ -25,15 +25,19 @@ export async function appendHistory(
   role: 'user' | 'assistant',
   content: string,
 ): Promise<void> {
-  const existing = await getHistory(tenantId, customerId, channel);
   const entry: HistoryMessage = { role, content, timestamp: new Date().toISOString() };
-  const updated = [...existing, entry].slice(-WINDOW);
 
   await db
     .insert(conversationState)
-    .values({ tenantId, customerId, channel, historial: updated })
+    .values({ tenantId, customerId, channel, historial: [entry] })
     .onConflictDoUpdate({
       target: [conversationState.tenantId, conversationState.customerId, conversationState.channel],
-      set: { historial: updated, updatedAt: new Date() },
+      set: {
+        historial: sql`jsonb_path_query_array(
+          coalesce(${conversationState.historial}, '[]'::jsonb) || ${JSON.stringify([entry])}::jsonb,
+          ${`$[-${WINDOW} to last]`}
+        )`,
+        updatedAt: new Date(),
+      },
     });
 }

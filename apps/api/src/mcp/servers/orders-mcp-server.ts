@@ -35,10 +35,12 @@ export const ordersMCPServer: MCPServer = {
         const allProducts = await db
           .select()
           .from(products)
-          .where(and(eq(products.tenantId, ctx.tenantId), eq(products.isActive, true)));
+          .where(and(eq(products.tenantId, ctx.tenantId), eq(products.isActive, true)))
+          .limit(50);
 
         const found = allProducts.find((p) => p.name.toLowerCase().includes(productName.toLowerCase()));
-        if (!found || !found.price) return `No encontré "${productName}" en el catálogo.`;
+        if (!found || found.price == null) return `No encontré "${productName}" en el catálogo.`;
+        if (found.stock != null && quantity > found.stock) return `Solo quedan ${found.stock} unidades disponibles.`;
 
         const cartId = await getOrCreateCartId(ctx.tenantId, ctx.customerId);
 
@@ -101,6 +103,14 @@ export const ordersMCPServer: MCPServer = {
         if (!cart) return 'Tu carrito está vacío. Agrega productos primero.';
         const items = await db.select().from(cartItems).where(eq(cartItems.cartId, cart.id));
         if (items.length === 0) return 'Tu carrito está vacío.';
+
+        // TODO: Wrap order creation in a DB transaction when the transaction wrapper is available.
+        for (const item of items) {
+          const [product] = await db.select({ stock: products.stock }).from(products).where(eq(products.id, item.productId)).limit(1);
+          if (product && product.stock != null && product.stock < item.quantity) {
+            return `No hay suficiente stock para ${item.productName}. Solo quedan ${product.stock} unidades.`;
+          }
+        }
 
         let subtotal = 0;
         items.forEach((i) => { subtotal += Number(i.unitPrice) * i.quantity; });

@@ -110,6 +110,7 @@ export const appointmentsMCPServer: MCPServer = {
 
         const scheduledAt = new Date(dateTime);
         if (isNaN(scheduledAt.getTime())) return 'La fecha/hora no es válida.';
+        if (scheduledAt <= new Date()) return 'La fecha debe ser en el futuro.';
 
         const duration = service.durationMinutes ?? 60;
         const available = await checkSlotAvailable(ctx.tenantId, scheduledAt, duration, service.id);
@@ -160,11 +161,14 @@ export const appointmentsMCPServer: MCPServer = {
             .orderBy(desc(appointments.scheduledAt))
             .limit(5);
 
-          const match = rows.find((a) => a.serviceName.toLowerCase().includes(serviceName.toLowerCase()));
-          if (!match) return `No encontré una cita activa para "${serviceName}".`;
+          const matches = rows.filter((a) => a.serviceName.toLowerCase().includes(serviceName.toLowerCase()));
+          if (matches.length === 0) return `No encontré una cita activa para "${serviceName}".`;
+          if (matches.length > 1) {
+            return `Tienes ${matches.length} citas para "${serviceName}". Por favor especifica cuál quieres cancelar:\n${matches.map((m, i) => `${i + 1}. ${m.serviceName} — ${fmtDate(m.scheduledAt)}`).join('\n')}`;
+          }
 
-          await db.update(appointments).set({ status: 'cancelled' }).where(eq(appointments.id, match.id));
-          return `✅ Cita cancelada: ${match.serviceName} — ${fmtDate(match.scheduledAt)}`;
+          await db.update(appointments).set({ status: 'cancelled' }).where(eq(appointments.id, matches[0]!.id));
+          return `✅ Cita cancelada: ${matches[0]!.serviceName} — ${fmtDate(matches[0]!.scheduledAt)}`;
         }
 
         // Cancel most recent

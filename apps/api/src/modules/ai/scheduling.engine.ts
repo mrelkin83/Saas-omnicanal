@@ -1,5 +1,7 @@
 import { db, appointments, eq, and, sql } from '@saas/db';
 
+// TODO: Business hours are currently hardcoded. Store per-tenant business hours
+// in the database (e.g., tenant_settings or business_hours table) and load them here.
 const WORK_START_HOUR = 8;
 const WORK_END_HOUR = 19;
 const SLOT_STEP_MINUTES = 30;

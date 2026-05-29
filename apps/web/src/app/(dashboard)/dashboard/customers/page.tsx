@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, Fragment } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { api, type Customer, type Order, type Appointment } from '@/lib/api';
 
@@ -85,9 +85,8 @@ export default function CustomersPage() {
               const isExp = expanded === c.id;
               const hist = histories[c.id];
               return (
-                <>
+                <Fragment key={c.id}>
                   <tr
-                    key={c.id}
                     style={{ borderTop: i > 0 ? '1px solid var(--border-subtle)' : undefined, background: 'var(--bg-surface-1)', cursor: 'pointer' }}
                     onClick={() => void toggleHistory(c)}
                   >
@@ -170,7 +169,7 @@ export default function CustomersPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </tbody>

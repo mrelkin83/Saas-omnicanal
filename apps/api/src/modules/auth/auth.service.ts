@@ -25,6 +25,8 @@ export async function registerTenant(input: RegisterTenantInput) {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 
+  const safeSlug = slug || 'tenant';
+
   const plan = await db.query.saasPlans.findFirst({
     where: or(eq(saasPlans.id, input.plan), eq(saasPlans.slug, input.plan)),
   });
@@ -34,7 +36,7 @@ export async function registerTenant(input: RegisterTenantInput) {
       .insert(tenants)
       .values({
         name: input.tenantName,
-        slug: `${slug}-${Date.now()}`,
+        slug: `${safeSlug}-${Date.now()}`,
         businessType: input.businessType,
         capabilities: [],
         planId: plan?.id,

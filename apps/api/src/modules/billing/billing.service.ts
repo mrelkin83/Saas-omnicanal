@@ -77,17 +77,16 @@ export async function checkAndSuspendExpiredSubscriptions(): Promise<number> {
   const now = new Date();
 
   const expired = await db
-    .select({ id: subscriptions.id, tenantId: subscriptions.tenantId })
+    .select({ id: subscriptions.id, tenantId: subscriptions.tenantId, currentPeriodEnd: subscriptions.currentPeriodEnd })
     .from(subscriptions)
     .where(and(eq(subscriptions.status, 'active'), sql`${subscriptions.currentPeriodEnd} < ${now}`));
 
   for (const sub of expired) {
     await db.update(subscriptions).set({ status: 'past_due', updatedAt: now }).where(eq(subscriptions.id, sub.id));
 
-    const gracePeriodEnd = new Date(now);
+    const gracePeriodEnd = new Date(sub.currentPeriodEnd);
     gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 3);
-    const [subData] = await db.select().from(subscriptions).where(eq(subscriptions.id, sub.id));
-    if (subData && new Date(subData.currentPeriodEnd) < new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)) {
+    if (now > gracePeriodEnd) {
       await db.update(tenants).set({ suspendedAt: now, suspendedReason: 'Suscripción vencida', updatedAt: now }).where(eq(tenants.id, sub.tenantId));
     }
   }

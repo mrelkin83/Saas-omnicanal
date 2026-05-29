@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthStore } from '@/store/auth';
 import { api, type TenantMe } from '@/lib/api';
+import { toast } from '@/hooks/useToast';
 
 const SECTIONS = ['Negocio', 'IA y Agente', 'Pagos', 'Apariencia'] as const;
 type Section = typeof SECTIONS[number];
@@ -215,9 +216,13 @@ function PaymentsSection({ token }: { token: string }) {
           setPublicKey(cfg['publicKey'] ?? '');
           setPrivateKey(cfg['privateKey'] ?? '');
           setEventSecret(cfg['eventSecret'] ?? '');
-        }).catch(() => {});
+        }).catch((err) => {
+          toast.error(err instanceof Error ? err.message : 'Error inesperado');
+        });
       }
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch((err) => {
+      toast.error(err instanceof Error ? err.message : 'Error inesperado');
+    }).finally(() => setLoading(false));
   }, [token]);
 
   const save = async () => {
@@ -287,10 +292,17 @@ function PaymentsSection({ token }: { token: string }) {
 }
 
 function AppearanceSection() {
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    if (typeof window === 'undefined') return 'dark';
-    return (localStorage.getItem('theme') as 'dark' | 'light') ?? 'dark';
-  });
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('theme') as 'dark' | 'light' | null;
+      if (stored) {
+        setTheme(stored);
+        document.documentElement.setAttribute('data-theme', stored);
+      }
+    }
+  }, []);
 
   const applyTheme = (t: 'dark' | 'light') => {
     setTheme(t);

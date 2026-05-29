@@ -9,26 +9,20 @@ export async function getActiveSession(tenantId: string, channel: string) {
 }
 
 export async function upsertSession(tenantId: string, channel: string, externalId: string, status: string, displayName?: string) {
-  const existing = await getActiveSession(tenantId, channel);
-  if (existing) {
-    const [updated] = await db
-      .update(channelSessions)
-      .set({
+  const [result] = await db
+    .insert(channelSessions)
+    .values({ tenantId, channel, externalId, status, displayName })
+    .onConflictDoUpdate({
+      target: [channelSessions.tenantId, channelSessions.channel],
+      set: {
         externalId,
         status,
         ...(displayName !== undefined ? { displayName } : {}),
         updatedAt: new Date(),
-      })
-      .where(eq(channelSessions.id, existing.id))
-      .returning();
-    return updated!;
-  }
-
-  const [created] = await db
-    .insert(channelSessions)
-    .values({ tenantId, channel, externalId, status, displayName })
+      },
+    })
     .returning();
-  return created!;
+  return result!;
 }
 
 export async function updateSessionStatus(tenantId: string, channel: string, status: string, displayName?: string) {

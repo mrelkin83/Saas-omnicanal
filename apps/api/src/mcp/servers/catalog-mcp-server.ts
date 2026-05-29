@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { db, products, categories, eq, and } from '@saas/db';
+import { db, products, categories, eq, and, ilike, inArray } from '@saas/db';
 import type { MCPServer } from '../core/mcp-server.interface.js';
 
 export const catalogMCPServer: MCPServer = {
@@ -16,6 +16,7 @@ export const catalogMCPServer: MCPServer = {
       }),
       execute: async (params, ctx) => {
         const type = params.type as 'product' | 'service' | undefined;
+        const categoryName = params.categoryName as string | undefined;
 
         const conditions = [
           eq(products.tenantId, ctx.tenantId),
@@ -23,7 +24,18 @@ export const catalogMCPServer: MCPServer = {
         ];
         if (type) conditions.push(eq(products.type, type));
 
-        const rows = await db.select().from(products).where(and(...conditions)).orderBy(products.name);
+        if (categoryName) {
+          const matchingCategories = await db
+            .select({ id: categories.id })
+            .from(categories)
+            .where(and(eq(categories.tenantId, ctx.tenantId), ilike(categories.name, `%${categoryName}%`)));
+          if (matchingCategories.length === 0) {
+            return 'No hay productos disponibles en esta categoría.';
+          }
+          conditions.push(inArray(products.categoryId, matchingCategories.map((c) => c.id)));
+        }
+
+        const rows = await db.select().from(products).where(and(...conditions)).orderBy(products.name).limit(50);
 
         if (rows.length === 0) return 'No hay productos disponibles en este momento.';
 

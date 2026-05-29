@@ -51,6 +51,10 @@ export default function InboxPage() {
   const [loadingList, setLoadingList] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const sseRef = useRef<EventSource | null>(null);
+  const selectedIdRef = useRef(selectedId);
+  const latestSelectRef = useRef<string | null>(null);
+
+  useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
 
   const loadConversations = useCallback(async () => {
     if (!accessToken) return;
@@ -67,6 +71,9 @@ export default function InboxPage() {
     }
   }, [accessToken, channelFilter]);
 
+  const loadConversationsRef = useRef(loadConversations);
+  useEffect(() => { loadConversationsRef.current = loadConversations; }, [loadConversations]);
+
   useEffect(() => {
     void loadConversations();
   }, [loadConversations]);
@@ -74,8 +81,10 @@ export default function InboxPage() {
   // SSE for real-time inbox updates
   useEffect(() => {
     if (!accessToken) return;
+    let mounted = true;
     let reconnectTimer: ReturnType<typeof setTimeout>;
     const connect = () => {
+      if (!mounted) return;
       const es = new EventSource(`${API_BASE}/api/channels/inbox/stream?token=${encodeURIComponent(accessToken)}`);
       sseRef.current = es;
 
@@ -85,7 +94,7 @@ export default function InboxPage() {
           setConversations((prev) => {
             const exists = prev.find((c) => c.id === payload.conversationId);
             if (!exists) {
-              void loadConversations();
+              void loadConversationsRef.current();
               return prev;
             }
             return prev.map((c) =>
@@ -95,7 +104,7 @@ export default function InboxPage() {
             ).sort((a, b) => new Date(b.lastMessageAt ?? 0).getTime() - new Date(a.lastMessageAt ?? 0).getTime());
           });
 
-          if (selectedId === payload.conversationId) {
+          if (selectedIdRef.current === payload.conversationId) {
             setDetail((prev) => prev ? { ...prev, messages: [...prev.messages, payload.message] } : prev);
           }
         } catch {
@@ -105,33 +114,41 @@ export default function InboxPage() {
 
       es.onerror = () => {
         es.close();
-        void loadConversations();
-        reconnectTimer = setTimeout(connect, 3000);
+        void loadConversationsRef.current();
+        reconnectTimer = setTimeout(() => {
+          if (mounted) connect();
+        }, 3000);
       };
     };
 
     connect();
     return () => {
+      mounted = false;
       clearTimeout(reconnectTimer);
       sseRef.current?.close();
     };
-  }, [accessToken, selectedId, loadConversations]);
+  }, [accessToken]);
 
   const selectConversation = async (id: string) => {
     if (!accessToken) return;
     setSelectedId(id);
     setLoadingDetail(true);
+    latestSelectRef.current = id;
     try {
       const [d, s] = await Promise.all([
         api.conversations.get(accessToken, id),
         api.conversations.getAIState(accessToken, id),
       ]);
+      if (latestSelectRef.current !== id) return;
       setDetail(d);
       setAIState((s.state as AIState) ?? 'IA_ACTIVA');
     } catch (err) {
+      if (latestSelectRef.current !== id) return;
       toast.error(err instanceof Error ? err.message : 'Error cargando conversación');
     } finally {
-      setLoadingDetail(false);
+      if (latestSelectRef.current === id) {
+        setLoadingDetail(false);
+      }
     }
   };
 

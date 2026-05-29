@@ -5,9 +5,10 @@ import { ZodError } from 'zod';
 const errorHandlerPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.setErrorHandler((error: FastifyError, _request, reply) => {
     if (error instanceof ZodError) {
+      const isProd = process.env.NODE_ENV === 'production';
       return reply.status(400).send({
         error: 'Validation Error',
-        message: error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+        message: isProd ? 'Invalid input' : error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
         code: 'VALIDATION_ERROR',
       });
     }

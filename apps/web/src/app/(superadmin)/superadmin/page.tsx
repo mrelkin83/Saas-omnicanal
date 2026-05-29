@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Building2, FlaskConical, Ban, TrendingUp, User, Handshake } from 'lucide-react';
 import { Card, SkeletonKpiGrid } from '@/components/ui';
+import { toast } from '@/hooks/useToast';
 
 interface DashboardData {
   totalTenants: number; activeDemos: number; suspended: number;
@@ -22,12 +23,24 @@ export default function SuperAdminDashboardPage() {
   useEffect(() => {
     const token = saToken();
     if (!token) { router.push('/superadmin/login'); return; }
-    fetch(`${API}/api/superadmin/dashboard`, { headers: { Authorization: `Bearer ${token}` } })
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    fetch(`${API}/api/superadmin/dashboard`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
       .then(async (res) => {
+        clearTimeout(timeoutId);
         if (res.status === 403 || res.status === 401) { router.push('/superadmin/login'); return; }
+        if (!res.ok) throw new Error(`Error ${res.status}`);
         setData(await res.json() as DashboardData);
       })
-      .catch(() => setError('Error cargando KPIs'));
+      .catch((err) => {
+        clearTimeout(timeoutId);
+        const msg = err instanceof Error ? err.message : 'Error cargando KPIs';
+        setError(msg);
+        toast.error(msg);
+      });
   }, [router]);
 
   if (error) return <div className="p-5 lg:p-8 max-w-6xl mx-auto text-red-400">{error}</div>;

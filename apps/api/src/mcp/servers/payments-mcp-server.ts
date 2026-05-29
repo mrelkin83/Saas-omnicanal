@@ -17,7 +17,7 @@ export const paymentsMCPServer: MCPServer = {
       description: 'Genera un link de pago Wompi para un pedido existente o monto específico',
       parameters: z.object({
         orderNumber: z.string().optional().describe('Número de pedido para pagar'),
-        amount: z.number().positive().optional().describe('Monto a pagar (si no hay pedido)'),
+        amount: z.number().positive().int().optional().describe('Monto a pagar (si no hay pedido)'),
         description: z.string().optional().describe('Descripción del pago'),
       }),
       execute: async (params, ctx) => {
