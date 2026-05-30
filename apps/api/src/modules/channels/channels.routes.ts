@@ -5,7 +5,7 @@ import { whatsappDriver } from './drivers/whatsapp/whatsapp.driver.js';
 import { instagramDriver } from './drivers/instagram/instagram.driver.js';
 import { facebookDriver } from './drivers/facebook/facebook.driver.js';
 import { tiktokDriver } from './drivers/tiktok/tiktok.driver.js';
-import { upsertSession, getActiveSession, deleteSession } from './channels.service.js';
+import { upsertSession, getActiveSession, deleteSession, updateSessionCredentials, getSessionCredentials } from './channels.service.js';
 import { addSSEClient, removeSSEClient, pushSSEEvent } from './core/sse-registry.js';
 import { handleIncomingMessage } from './core/incoming-handler.js';
 import { addInboxClient, removeInboxClient } from '../../modules/conversations/inbox.sse.js';
@@ -179,19 +179,46 @@ const channelsRoutes: FastifyPluginAsync = async (fastify) => {
   // ── Facebook ──────────────────────────────────────────────────────────────
 
   const fbConnectSchema = z.object({
-    appState: z.string().min(1),
+    email: z.string().email().optional(),
+    password: z.string().min(1).optional(),
+    twoFactorCode: z.string().optional(),
+    appState: z.string().optional(),
+  }).refine((data) => (data.email && data.password) || data.appState, {
+    message: 'Se requiere email+password o appState',
+    path: ['email'],
   });
 
   fastify.post('/facebook/connect', { preHandler: [requireAuth('admin')] }, async (request, reply) => {
     const tenantId = request.user!.tenantId;
     const data = fbConnectSchema.parse(request.body);
 
-    const result = await facebookDriver.connect(tenantId, data);
+    // Try to load saved appState from DB for reconnection
+    const savedCreds = await getSessionCredentials(tenantId, 'facebook');
+    const payload: Record<string, string | undefined> = {
+      email: data.email ?? undefined,
+      password: data.password ?? undefined,
+      twoFactorCode: data.twoFactorCode ?? undefined,
+      appState: data.appState ?? (savedCreds?.appState as string | undefined) ?? undefined,
+    };
+
+    const result = await facebookDriver.connect(tenantId, payload);
+
+    if (result.errorMessage === 'requires_2fa') {
+      return { ok: false, requires2FA: true };
+    }
     if (result.status === 'error') {
       return reply.status(400).send({ error: 'Bad Request', message: result.errorMessage ?? 'Error conectando Facebook', code: 'FB_CONNECT_ERROR' });
     }
 
-    await upsertSession(tenantId, 'facebook', tenantId, 'connected');
+    // Persist appState for future reconnections
+    const freshAppState = facebookDriver.getAppState(tenantId);
+    if (freshAppState) {
+      await upsertSession(tenantId, 'facebook', tenantId, 'connected');
+      await updateSessionCredentials(tenantId, 'facebook', { appState: freshAppState });
+    } else {
+      await upsertSession(tenantId, 'facebook', tenantId, 'connected');
+    }
+
     facebookDriver.onIncoming(handleIncomingMessage);
     return { ok: true };
   });
@@ -221,6 +248,8 @@ const channelsRoutes: FastifyPluginAsync = async (fastify) => {
 
     await tiktokDriver.connect(tenantId, data);
     await upsertSession(tenantId, 'tiktok', tenantId, 'connected', data.username);
+    // Persist cookies for reconnection
+    await updateSessionCredentials(tenantId, 'tiktok', { cookies: data.cookies, username: data.username });
     tiktokDriver.onIncoming(handleIncomingMessage);
     return { ok: true, username: data.username };
   });

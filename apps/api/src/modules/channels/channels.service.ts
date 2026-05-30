@@ -38,6 +38,23 @@ export async function updateSessionStatus(tenantId: string, channel: string, sta
   return updated ?? null;
 }
 
+export async function updateSessionCredentials(tenantId: string, channel: string, credentials: Record<string, unknown>) {
+  const [updated] = await db
+    .update(channelSessions)
+    .set({ credentials, updatedAt: new Date() })
+    .where(and(eq(channelSessions.tenantId, tenantId), eq(channelSessions.channel, channel)))
+    .returning();
+  return updated ?? null;
+}
+
+export async function getSessionCredentials(tenantId: string, channel: string): Promise<Record<string, unknown> | null> {
+  const [session] = await db
+    .select({ credentials: channelSessions.credentials })
+    .from(channelSessions)
+    .where(and(eq(channelSessions.tenantId, tenantId), eq(channelSessions.channel, channel)));
+  return (session?.credentials as Record<string, unknown>) ?? null;
+}
+
 export async function deleteSession(tenantId: string, sessionId: string) {
   const [deleted] = await db
     .delete(channelSessions)

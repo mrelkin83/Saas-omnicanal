@@ -10,6 +10,7 @@ type FcaAPI = {
   listenMqtt: (handler: (err: Error | null, msg: FcaMessage) => void) => { stopListening: () => void };
   sendMessage: (msg: { body: string }, threadID: string, callback: (err: Error | null) => void) => void;
   getCurrentUserID: () => string;
+  getAppState: () => Array<{ key: string; value: string; domain?: string; path?: string; expires?: string; httpOnly?: boolean; secure?: boolean }>;
 };
 
 interface FcaMessage {
@@ -21,6 +22,13 @@ interface FcaMessage {
   messageID: string;
 }
 
+interface FacebookCredentials {
+  email?: string;
+  password?: string;
+  twoFactorCode?: string;
+  appState?: string;
+}
+
 type IncomingHandler = (msg: NormalizedMessage) => Promise<void>;
 
 class FacebookDriver implements IChannelDriver {
@@ -28,20 +36,62 @@ class FacebookDriver implements IChannelDriver {
   private handler: IncomingHandler | null = null;
   private sessions = new Map<string, { api: FcaAPI; stop: () => void }>();
 
+  private getLoginOptions(creds: FacebookCredentials): unknown {
+    // Prefer saved appState for reconnection
+    if (creds.appState) {
+      try {
+        return { appState: JSON.parse(creds.appState) };
+      } catch {
+        // Invalid saved appState, fall through to email/password
+      }
+    }
+
+    if (!creds.email || !creds.password) {
+      return null;
+    }
+
+    const opts: Record<string, unknown> = {
+      email: creds.email,
+      password: creds.password,
+    };
+
+    if (creds.twoFactorCode) {
+      opts['twoFactorCode'] = creds.twoFactorCode;
+    }
+
+    return opts;
+  }
+
   async connect(tenantId: string, credentials: unknown): Promise<ConnectResult> {
-    const creds = credentials as { appState: string };
-    let appState: unknown;
-    try {
-      appState = JSON.parse(creds.appState);
-    } catch {
-      return { sessionId: tenantId, status: 'error', errorMessage: 'appState JSON inválido' };
+    const creds = credentials as FacebookCredentials;
+    const loginOpts = this.getLoginOptions(creds);
+
+    if (!loginOpts) {
+      return {
+        sessionId: tenantId,
+        status: 'error',
+        errorMessage: 'Se requiere email y contraseña, o un appState previamente guardado.',
+      };
     }
 
     return new Promise((resolve) => {
       const login = require('fca-unofficial') as (opts: unknown, cb: (err: Error | null, api: FcaAPI) => void) => void;
 
-      login({ appState }, (err, api) => {
+      login(loginOpts, (err, api) => {
         if (err) {
+          const msg = err.message?.toLowerCase() ?? '';
+          // Detect 2FA requirement
+          if (
+            msg.includes('login-approval') ||
+            msg.includes('two-factor') ||
+            msg.includes('2fa') ||
+            msg.includes('código') ||
+            msg.includes('code') ||
+            msg.includes('security check')
+          ) {
+            resolve({ sessionId: tenantId, status: 'pending_qr', errorMessage: 'requires_2fa' });
+            return;
+          }
           resolve({ sessionId: tenantId, status: 'error', errorMessage: err.message });
           return;
         }
@@ -66,6 +116,20 @@ class FacebookDriver implements IChannelDriver {
         resolve({ sessionId: tenantId, status: 'connected' });
       });
     });
+  }
+
+  /**
+   * Extract the current appState from an active session.
+   * Call this after a successful connect to persist credentials for reconnection.
+   */
+  getAppState(tenantId: string): string | null {
+    const session = this.sessions.get(tenantId);
+    if (!session) return null;
+    try {
+      return JSON.stringify(session.api.getAppState());
+    } catch {
+      return null;
+    }
   }
 
   async disconnect(sessionId: string): Promise<void> {

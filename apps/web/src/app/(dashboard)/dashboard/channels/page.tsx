@@ -45,8 +45,11 @@ export default function ChannelsPage() {
   const [ig2fa, setIg2fa] = useState('');
   const [igNeeds2fa, setIgNeeds2fa] = useState(false);
 
-  // Facebook field
-  const [fbState, setFbState] = useState('');
+  // Facebook fields
+  const [fbEmail, setFbEmail] = useState('');
+  const [fbPassword, setFbPassword] = useState('');
+  const [fb2fa, setFb2fa] = useState('');
+  const [fbNeeds2fa, setFbNeeds2fa] = useState(false);
 
   // TikTok fields
   const [ttCookies, setTtCookies] = useState('');
@@ -71,7 +74,7 @@ export default function ChannelsPage() {
     setQrCode(null);
     setWaModalState('connecting');
     setIgUser(''); setIgPass(''); setIg2fa(''); setIgNeeds2fa(false);
-    setFbState('');
+    setFbEmail(''); setFbPassword(''); setFb2fa(''); setFbNeeds2fa(false);
     setTtCookies(''); setTtUser('');
     esRef.current?.close();
     esRef.current = null;
@@ -161,7 +164,12 @@ export default function ChannelsPage() {
     if (!accessToken) return;
     setLoading(true); setError('');
     try {
-      await api.channels.connectFacebook(accessToken, { appState: fbState });
+      const res = await api.channels.connectFacebook(accessToken, {
+        email: fbEmail,
+        password: fbPassword,
+        ...(fbNeeds2fa ? { twoFactorCode: fb2fa } : {}),
+      });
+      if (res.requires2FA) { setFbNeeds2fa(true); setLoading(false); return; }
       await loadStatus();
       closeModal();
     } catch (err) {
@@ -349,37 +357,37 @@ export default function ChannelsPage() {
             {modal === 'facebook' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Conectar Facebook</h2>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-surface-1)', padding: 12, borderRadius: 8, lineHeight: 1.6 }}>
-                  <strong style={{ color: 'var(--text-primary)' }}>Guía paso a paso:</strong>
-                  <ol style={{ paddingLeft: 16, margin: '6px 0 0' }}>
-                    <li>Abre <strong>messenger.com</strong> en Chrome/Edge e inicia sesión.</li>
-                    <li>Presiona <strong>F12</strong> → pestaña <strong>Application</strong> (Aplicación).</li>
-                    <li>En el panel izquierdo, expande <strong>Cookies</strong> → <strong>https://www.messenger.com</strong>.</li>
-                    <li>Haz clic derecho en cualquier cookie → <strong>Clear</strong> no, en su lugar selecciona todas las cookies relevantes (c_user, xs, datr, sb, fr) y cópialas.</li>
-                    <li>Alternativa más sencilla: instala la extensión <strong>&quot;Get cookies.txt&quot;</strong> y exporta como JSON.</li>
-                    <li>Pega el JSON completo en el campo de abajo.</li>
-                  </ol>
-                  <p style={{ margin: '8px 0 0', color: 'var(--accent-warning, #f59e0b)' }}>
-                    ⚠️ Usa una cuenta secundaria. No uses tu cuenta personal principal.
-                  </p>
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>App State (JSON de cookies)</label>
-                  <textarea
-                    value={fbState}
-                    onChange={(e) => setFbState(e.target.value)}
-                    placeholder='[{"key":"c_user","value":"1000...","domain":".facebook.com"}, ...]'
-                    rows={6}
-                    style={{ ...inp, resize: 'vertical' as const }}
-                  />
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+                  Ingresa tu email y contraseña de Facebook. El sistema inicia sesión automáticamente y gestiona la sesión por ti.
+                </p>
+                {!fbNeeds2fa ? (
+                  <>
+                    <div>
+                      <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Email de Facebook</label>
+                      <input type="email" value={fbEmail} onChange={(e) => setFbEmail(e.target.value)} placeholder="tuemail@ejemplo.com" style={inp} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Contraseña</label>
+                      <input type="password" value={fbPassword} onChange={(e) => setFbPassword(e.target.value)} placeholder="••••••••" style={inp} />
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Código de verificación (2FA)</label>
+                    <input value={fb2fa} onChange={(e) => setFb2fa(e.target.value)} placeholder="123456" style={inp} autoFocus />
+                    <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '4px 0 0' }}>Abre tu app de autenticación o espera el SMS.</p>
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: 'var(--accent-warning, #f59e0b)', background: 'var(--bg-surface-1)', padding: 10, borderRadius: 6 }}>
+                  ⚠️ Usa una cuenta secundaria de Facebook. No uses tu cuenta personal principal.
                 </div>
                 {error && <p style={{ fontSize: 12, color: '#ef4444', margin: 0 }}>{error}</p>}
                 <button
                   onClick={connectFacebook}
-                  disabled={loading || !fbState.trim()}
+                  disabled={loading || (!fbNeeds2fa && (!fbEmail || !fbPassword)) || (fbNeeds2fa && !fb2fa)}
                   style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: CHANNEL_META.facebook.color, color: '#fff', fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.6 : 1 }}
                 >
-                  {loading ? 'Conectando...' : 'Conectar'}
+                  {loading ? 'Conectando...' : fbNeeds2fa ? 'Verificar código' : 'Conectar'}
                 </button>
               </div>
             )}
@@ -388,26 +396,38 @@ export default function ChannelsPage() {
             {modal === 'tiktok' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Conectar TikTok</h2>
+
+                {/* Bookmarklet helper */}
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-surface-1)', padding: 12, borderRadius: 8, lineHeight: 1.6 }}>
-                  <strong style={{ color: 'var(--text-primary)' }}>Guía paso a paso:</strong>
+                  <strong style={{ color: 'var(--text-primary)' }}>Método recomendado — Extracción automática:</strong>
                   <ol style={{ paddingLeft: 16, margin: '6px 0 0' }}>
+                    <li><strong>Copia el bookmarklet</strong> haciendo clic en el botón de abajo.</li>
                     <li>Abre <strong>tiktok.com</strong> en Chrome/Edge e inicia sesión.</li>
-                    <li>Presiona <strong>F12</strong> → pestaña <strong>Application</strong> (Aplicación).</li>
-                    <li>En el panel izquierdo, expande <strong>Cookies</strong> → <strong>https://www.tiktok.com</strong>.</li>
-                    <li>Busca estas cookies clave: <code>sessionid</code>, <code>tt_webid</code>, <code>tt_webid_v2</code>, <code>msToken</code>.</li>
-                    <li>Copia los valores y pega un JSON con formato: <code>{'{"sessionid":"...","tt_webid":"..."}'}</code></li>
-                    <li>También puedes usar la extensión <strong>&quot;Get cookies.txt&quot;</strong> y adaptar el JSON.</li>
+                    <li>En la barra de bookmarks del navegador, haz clic derecho → <strong>Añadir página</strong>. Pega el código copiado en la URL y nómbralo <strong>&quot;Extraer cookies&quot;</strong>.</li>
+                    <li>Mientras estés en TikTok, haz clic en el bookmark. Se copiarán las cookies automáticamente.</li>
+                    <li>Vuelve aquí y <strong>pega</strong> (Ctrl+V) en el campo de cookies.</li>
                   </ol>
-                  <p style={{ margin: '8px 0 0', color: 'var(--accent-warning, #f59e0b)' }}>
-                    ⚠️ Usa una cuenta de empresa o secundaria. Las sesiones pueden expirar y requerir renovación manual.
-                  </p>
+                  <button
+                    onClick={() => {
+                      const bm = "javascript:(function(){const c=document.cookie.split(';').reduce((a,b)=>{const[i,v]=b.trim().split('=');if(i)a[i]=v;return a},{});const j=JSON.stringify(c);navigator.clipboard.writeText(j).then(()=>alert('Cookies copiadas. Pega aquí con Ctrl+V.')).catch(()=>prompt('Copia este texto:',j));})();";
+                      navigator.clipboard.writeText(bm).then(() => toast.success('Bookmarklet copiado. Crea un bookmark con este código como URL.')).catch(() => toast.error('No se pudo copiar. Copia manualmente el código del bookmarklet.'));
+                    }}
+                    style={{ marginTop: 8, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--accent-primary)', background: 'transparent', color: 'var(--accent-primary)', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    Copiar bookmarklet de extracción
+                  </button>
                 </div>
+
+                <div style={{ fontSize: 11, color: 'var(--accent-warning, #f59e0b)', background: 'var(--bg-surface-1)', padding: 10, borderRadius: 6 }}>
+                  ⚠️ Usa una cuenta de empresa o secundaria. Las sesiones pueden expirar y requerir renovación manual.
+                </div>
+
                 <div>
                   <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Usuario de TikTok</label>
                   <input value={ttUser} onChange={(e) => setTtUser(e.target.value)} placeholder="@miusuario" style={inp} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Cookies (JSON)</label>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Cookies (JSON) — pega aquí después de usar el bookmarklet</label>
                   <textarea
                     value={ttCookies}
                     onChange={(e) => setTtCookies(e.target.value)}

@@ -218,8 +218,8 @@ export const api = {
       request<{ ok: boolean; requires2FA?: boolean; username?: string }>('/api/channels/instagram/connect', { method: 'POST', token, body: JSON.stringify(data) }),
     disconnectInstagram: (token: string, id: string) =>
       request<void>(`/api/channels/instagram/${id}`, { method: 'DELETE', token }),
-    connectFacebook: (token: string, data: { appState: string }) =>
-      request<{ ok: boolean }>('/api/channels/facebook/connect', { method: 'POST', token, body: JSON.stringify(data) }),
+    connectFacebook: (token: string, data: { email?: string; password?: string; twoFactorCode?: string; appState?: string }) =>
+      request<{ ok: boolean; requires2FA?: boolean }>('/api/channels/facebook/connect', { method: 'POST', token, body: JSON.stringify(data) }),
     disconnectFacebook: (token: string, id: string) =>
       request<void>(`/api/channels/facebook/${id}`, { method: 'DELETE', token }),
     connectTikTok: (token: string, data: { cookies: string; username: string }) =>
