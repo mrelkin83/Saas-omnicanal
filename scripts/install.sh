@@ -130,6 +130,27 @@ install_system_deps() {
   log "Dependencias instaladas"
 }
 
+# ── Verificacion de recursos ──────────────────────────────────────────────────
+check_resources() {
+  header "Verificando recursos del VPS"
+
+  local ram_gb disk_gb
+  ram_gb=$(free -m | awk '/^Mem:/{printf "%.0f", $2/1024}')
+  disk_gb=$(df -BG "$INSTALL_DIR" 2>/dev/null | awk 'NR==2{gsub(/G/,"");print $4}' || echo "0")
+  [[ "$disk_gb" == "0" ]] && disk_gb=$(df -BG / 2>/dev/null | awk 'NR==2{gsub(/G/,"");print $4}')
+
+  info "RAM detectada: ${ram_gb} GB | Disco libre: ${disk_gb} GB"
+
+  if [[ "$ram_gb" -lt 3 ]]; then
+    err "RAM insuficiente: ${ram_gb} GB (minimo 4 GB recomendado). El despliegue puede fallar o ser extremadamente lento."
+  fi
+  if [[ "$disk_gb" -lt 15 ]]; then
+    err "Disco insuficiente: ${disk_gb} GB libres (minimo 20 GB recomendado)."
+  fi
+
+  log "Recursos OK — RAM: ${ram_gb} GB | Disco: ${disk_gb} GB"
+}
+
 # ── Docker ────────────────────────────────────────────────────────────────────
 install_docker() {
   header "Instalando Docker"
@@ -147,6 +168,13 @@ install_docker() {
       2>&1 | tee -a "$LOG_FILE" | grep -E "^(Setting|Unpacking)" || true
   fi
   log "Docker Compose: $(docker compose version)"
+
+  # Verificar que BuildKit está activo (necesario para multi-stage builds)
+  if [[ "${DOCKER_BUILDKIT:-1}" != "1" ]] && ! docker buildx version &>/dev/null 2>&1; then
+    info "Activando Docker BuildKit..."
+    export DOCKER_BUILDKIT=1
+    echo 'export DOCKER_BUILDKIT=1' >> /etc/profile.d/docker-buildkit.sh
+  fi
 }
 
 # ── Firewall ──────────────────────────────────────────────────────────────────
@@ -249,21 +277,23 @@ start_services() {
   header "Iniciando servicios"
   cd "$INSTALL_DIR"
 
-  # Limpiar estado anterior (contenedores + volumenes) para evitar credenciales stale
-  info "Limpiando instalacion anterior si existe..."
-  dc down -v --remove-orphans 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container|Volume|Network)" || true
+  # Detener contenedores previos pero PRESERVAR volumenes (datos).
+  # El flag -v eliminaria pgdata y redisdata — catastrofico en reinstalacion.
+  info "Deteniendo contenedores previos (datos preservados)..."
+  dc down --remove-orphans 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container|Network)" || true
+
+  info "Construyendo imagen Instagram Bridge..."
+  dc build instagram-bridge 2>&1 | tee -a "$LOG_FILE"
 
   info "Construyendo imagen API (puede tardar 10-20 min en primer arranque)..."
-  # Un build fallido debe detener la instalacion — sin || true.
   dc build api 2>&1 | tee -a "$LOG_FILE"
 
   info "Construyendo imagen Web..."
   dc build web 2>&1 | tee -a "$LOG_FILE"
 
-  # Levantar solo postgres y redis primero para garantizar DB limpia antes
-  # de que el API intente migrar.
-  info "Iniciando base de datos..."
-  dc up -d postgres redis 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container |Network |Volume )" || true
+  # Levantar infraestructura primero
+  info "Iniciando base de datos y cache..."
+  dc up -d postgres redis 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container |Network )" || true
 
   info "Esperando PostgreSQL..."
   local n=0
@@ -281,19 +311,11 @@ start_services() {
   echo ""
   log "PostgreSQL listo"
 
-  # Eliminar tabla de seguimiento de drizzle si existe de una instalacion anterior
-  # donde el volumen no fue limpiado correctamente. Sin esto drizzle cree que las
-  # migraciones ya estan aplicadas y no crea las tablas.
-  info "Reseteando estado de migraciones..."
-  dc exec -T postgres psql -U saas -d saas_omnichannel \
-    -c 'DROP TABLE IF EXISTS "__drizzle_migrations"' >/dev/null 2>&1 || true
-  log "Estado de migraciones limpio"
-
-  # Levantar el resto de servicios (API correra migraciones en su startup)
+  # Levantar todos los servicios
   info "Iniciando todos los servicios..."
-  dc up -d 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container |Network |Volume )" || true
+  dc up -d 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container |Network )" || true
 
-  # Esperar a que el API complete migraciones y responda al healthcheck
+  # Esperar API (incluye migraciones automaticas en startup)
   info "Esperando API (incluye migraciones en primer arranque)..."
   n=0
   until dc exec -T api node --input-type=module \
@@ -326,6 +348,49 @@ run_migrations() {
     warn "=== Ultimas lineas de logs del API (migraciones) ==="
     dc logs --tail 40 api 2>&1 | tee -a "$LOG_FILE" || true
     err "Las tablas no existen tras el arranque del API. Ver log: dc logs api"
+  fi
+}
+
+# ── Verificar servicios ───────────────────────────────────────────────────────
+check_all_services() {
+  header "Verificando servicios"
+
+  local svc n healthy
+  for svc in postgres redis evolution-api instagram-bridge api web caddy; do
+    healthy=$(dc ps --format '{{.Service}} {{.Health}}' 2>/dev/null | awk -v s="$svc" '$1==s{print $2}')
+    if [[ "$healthy" == "healthy" ]]; then
+      log "$svc: healthy"
+    elif [[ "$svc" == "caddy" ]] || [[ "$svc" == "web" ]]; then
+      # Caddy y Web pueden no tener healthcheck definido; verificar que estan running
+      if dc ps --services --filter "status=running" 2>/dev/null | grep -q "^${svc}$"; then
+        log "$svc: running (sin healthcheck)"
+      else
+        warn "$svc: no esta corriendo"
+      fi
+    elif [[ "$svc" == "evolution-api" ]] || [[ "$svc" == "instagram-bridge" ]]; then
+      # Servicios externos sin healthcheck definido en compose
+      if dc ps --services --filter "status=running" 2>/dev/null | grep -q "^${svc}$"; then
+        log "$svc: running"
+      else
+        warn "$svc: no esta corriendo — revisa los logs con: dc logs $svc"
+      fi
+    else
+      warn "$svc: estado desconocido ($healthy)"
+    fi
+  done
+
+  # Verificar conectividad entre servicios
+  info "Verificando conectividad interna..."
+  if dc exec -T api wget -qO- http://evolution-api:8080 >/dev/null 2>&1; then
+    log "API -> Evolution API: OK"
+  else
+    warn "API -> Evolution API: no responde (normal en primer arranque, arranca en segundo plano)"
+  fi
+
+  if dc exec -T api wget -qO- http://instagram-bridge:8000 >/dev/null 2>&1; then
+    log "API -> Instagram Bridge: OK"
+  else
+    warn "API -> Instagram Bridge: no responde (normal si aun no ha iniciado)"
   fi
 }
 
@@ -437,6 +502,7 @@ main() {
   [[ $EUID -ne 0 ]] && err "Ejecuta como root: sudo bash $0"
 
   collect_config "$@"
+  check_resources
   install_system_deps
   install_docker
   configure_firewall
@@ -444,6 +510,7 @@ main() {
   generate_env
   start_services
   run_migrations
+  check_all_services
   create_superadmin
   verify_login
   setup_backups

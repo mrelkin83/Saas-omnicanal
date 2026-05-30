@@ -25,6 +25,8 @@ El script instala Docker, configura el firewall, clona el repo, genera `.env` co
 
 Software previo: **Docker ≥ 24**, **Docker Compose plugin ≥ 2.20**, **Git**.
 
+> ⚠️ **Advertencia crítica:** NUNCA ejecutes `docker compose down -v` en producción. El flag `-v` elimina permanentemente los volúmenes de datos (PostgreSQL, Redis, sesiones de Instagram). Usa `docker compose down` (sin `-v`) o `docker compose stop` para preservar datos.
+
 ---
 
 ## 1. Preparar el servidor
@@ -50,7 +52,24 @@ docker compose version
 
 ---
 
-## 2. Clonar el repositorio
+## 2. Verificar recursos (antes de clonar)
+
+El autoinstalador verifica automáticamente, pero en instalación manual confirma:
+
+```bash
+# RAM minima 4 GB (recomendado 8 GB)
+free -h
+
+# Disco libre minimo 20 GB (recomendado 40 GB)
+df -h /
+
+# CPU
+nproc
+```
+
+Si tienes menos de 4 GB RAM, el build de Docker puede fallar o ser extremadamente lento.
+
+## 3. Clonar el repositorio
 
 ```bash
 cd /opt
@@ -60,7 +79,7 @@ cd saas
 
 ---
 
-## 3. Configurar variables de entorno
+## 4. Configurar variables de entorno
 
 ```bash
 cp .env.example .env
@@ -99,7 +118,7 @@ openssl rand -hex 32
 
 ---
 
-## 4. Apuntar el DNS
+## 5. Apuntar el DNS
 
 En tu proveedor DNS, agrega un registro **A**:
 ```
@@ -110,7 +129,7 @@ Espera la propagación (puede tardar hasta 10 minutos).
 
 ---
 
-## 5. Levantar la aplicación
+## 6. Levantar la aplicación
 
 ```bash
 # Desde la raíz del repo, construir e iniciar
@@ -124,7 +143,7 @@ El primer build puede tomar 10–20 minutos. Caddy obtendrá el certificado TLS 
 
 ---
 
-## 6. Ejecutar migraciones de base de datos
+## 7. Ejecutar migraciones de base de datos
 
 Las migraciones corren automáticamente al iniciar el API (`runMigrations()` en `server.ts`). Si necesitas ejecutarlas manualmente:
 
@@ -140,7 +159,7 @@ docker compose -f docker/docker-compose.yml --env-file .env exec postgres \
 
 ---
 
-## 7. Crear el primer superadmin
+## 8. Crear el primer superadmin
 
 ```bash
 docker compose -f docker/docker-compose.yml --env-file .env exec api \
@@ -149,7 +168,7 @@ docker compose -f docker/docker-compose.yml --env-file .env exec api \
 
 ---
 
-## 8. Verificar el despliegue
+## 9. Verificar el despliegue
 
 ```bash
 # Health check API
@@ -172,7 +191,7 @@ curl -s https://app.tudominio.co/api/superadmin/monitor/health \
 
 ---
 
-## 9. Configurar backups automáticos
+## 10. Configurar backups automáticos
 
 El `docker-compose.yml` de producción ya incluye un contenedor `backup` que realiza dumps diarios automáticos. Si prefieres usar el script de backup en el host:
 
@@ -195,7 +214,7 @@ ls -lh /var/backups/postgres/
 
 ---
 
-## 10. Actualizaciones
+## 11. Actualizaciones
 
 ### Pre-update: verificar estado actual
 ```bash
@@ -212,8 +231,8 @@ echo "Rollback commit: $ROLLBACK"
 cd /opt/saas
 git pull
 
-# Reconstruir solo lo que cambió (api y web)
-docker compose -f docker/docker-compose.yml --env-file .env up -d --build api web
+# Reconstruir solo lo que cambió (api, web e instagram-bridge si es necesario)
+docker compose -f docker/docker-compose.yml --env-file .env up -d --build api web instagram-bridge
 ```
 
 ### Verificar post-update
@@ -298,6 +317,15 @@ docker compose -f docker/docker-compose.yml --env-file .env logs --tail=100 api
 **Redis AUTH failed:**
 - Verificar que `REDIS_PASSWORD` en `.env` coincide con el valor usado en `docker-compose.yml`
 - El contenedor Redis usa `--requirepass`, por lo que la contraseña es obligatoria
+
+**Instagram Bridge falla al construir:**
+- El Dockerfile de instagram-bridge instala `libjpeg-dev`, `zlib1g-dev` y otras bibliotecas del sistema necesarias para `Pillow` e `instagrapi`
+- Si el build falla, verifica que el contenedor tiene acceso a internet: `docker compose exec instagram-bridge ping -c 1 pypi.org`
+
+**Reinstalación sin perder datos:**
+- Si necesitas reinstalar, NUNCA uses `docker compose down -v`. Los datos se preservan en volúmenes Docker.
+- Para reinstalar desde cero con datos preservados: `docker compose down && docker compose up -d --build`
+- Para reinstalar y borrar TODO (incluyendo datos): `docker compose down -v` ⚠️ **IRREVERSIBLE**
 
 ---
 
