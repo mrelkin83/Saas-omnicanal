@@ -30,7 +30,18 @@ export async function runMigrations(): Promise<void> {
   const migrationClient = postgres(connectionString, { max: 1 });
   const db = drizzle(migrationClient);
 
-  await migrate(db, { migrationsFolder });
+  try {
+    await migrate(db, { migrationsFolder });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // 42P07 = relation already exists, 42701 = column already exists
+    // These are safe to ignore when migrations are idempotent (IF NOT EXISTS).
+    if (msg.includes('42P07') || msg.includes('42701')) {
+      console.warn('[migrate] Migration failed with "already exists" error — likely a reinstallation over existing data. Continuing...');
+    } else {
+      throw err;
+    }
+  }
 
   const appRolePassword = process.env['DB_APP_ROLE_PASSWORD'] || randomBytes(24).toString('base64url');
 

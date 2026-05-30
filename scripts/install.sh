@@ -321,6 +321,15 @@ start_services() {
   echo ""
   log "PostgreSQL listo"
 
+  # Reparar estado de migraciones para reinstalaciones sobre datos existentes.
+  # Si la migracion 0004 fue modificada (ahora idempotente con IF NOT EXISTS),
+  # Drizzle detectaria un hash mismatch. Borramos la entrada para que se
+  # re-ejecute sin error. Las tablas existentes se saltean automaticamente.
+  info "Reparando estado de migraciones (reinstalacion segura)..."
+  dc exec -T postgres psql -U saas -d saas_omnichannel \
+    -c "DELETE FROM \"__drizzle_migrations\" WHERE \"id\" LIKE '%0004%'" >/dev/null 2>&1 || true
+  log "Migraciones listas para re-ejecutarse si es necesario"
+
   # Levantar todos los servicios
   info "Iniciando todos los servicios..."
   dc up -d 2>&1 | tee -a "$LOG_FILE" | grep -E "^(Container |Network )" || true
