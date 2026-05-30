@@ -134,6 +134,19 @@
 
 ---
 
+## Fase 13 — Fixes Críticos de Producción + UX Canales
+- **Completada:** 2026-05-29  |  **Tag:** `fase-13-completa`  |  **Commit:** `38c6cfc`
+- **Migración faltante `0004_oval_stryfe.sql`:** `UNIQUE INDEX` en `channel_sessions(tenant_id, channel)` — corrige error 500 de WhatsApp en DB frescas
+- **Bug MCP capabilities:** `getMCPServersForCapabilities([])` filtraba todos los servidores de negocio cuando `capabilities=[]` (default). Ahora retorna todos los servidores.
+- **LLM apiKey vacío:** Validación explícita rechaza `apiKey: ''` con mensaje actionable que guía al usuario a Integraciones
+- **Integraciones visible:** Tab "Integraciones" añadido a Settings + webhook Wompi muestra `tenantId` real en vez de `[tenantId]`
+- **Facebook login automático:** Driver refactorizado para aceptar `email/password` directamente. Maneja 2FA, persiste `appState` en DB para reconexiones automáticas. UX igual que Instagram.
+- **TikTok bookmarklet:** Bookmarklet de extracción automática de cookies con un clic. Instrucciones simplificadas para usuario final.
+- **Iconos profesionales:** Emojis reemplazados por Lucide React en página de Canales
+- **Typecheck limpio:** API 0 errores, Web 0 errores, 13 tests verdes
+
+---
+
 ## Criterios Finales de Aceptación
 
 | Criterio | Estado |
@@ -142,19 +155,19 @@
 | HTTPS automático | ✅ Caddy + Let's Encrypt |
 | Backups diarios automáticos | ✅ cron + contenedor backup + `scripts/backup-postgres.sh` |
 | Auth multi-tenant JWT + Zod validation | ✅ Fases 2-10 + Fase 12 |
-| WhatsApp QR → IA responde | ✅ Evolution API + MCP pipeline |
-| Instagram / Facebook / TikTok | ✅ 4 drivers, jobs polling Fase 6 |
+| WhatsApp QR → IA responde | ✅ Evolution API + MCP pipeline + Fase 13 fix |
+| Instagram / Facebook / TikTok | ✅ 4 drivers + Fase 13 (FB auto-login, TikTok bookmarklet) |
 | Citas / Reservas / Pedidos / Pagos Wompi | ✅ Fase 7 + Fase 12 fixes |
 | Kanban + Multiagente + Departamentos | ✅ Fase 8 |
 | Campañas masivas 30 msg/min + checkpoints | ✅ BullMQ + rate limit Fase 9 + Fase 12 |
 | Panel SuperAdmin independiente | ✅ Fase 10 |
 | Monitor VPS en tiempo real | ✅ CPU/RAM/disco, refresh 10s |
-| MCP AI Engine (8 servidores) | ✅ Fase 12 |
+| MCP AI Engine (8 servidores) | ✅ Fase 12 + Fase 13 fix capabilities |
 | Tests > 80% módulos críticos | ✅ vitest configurado, umbral 80% |
 | Cero `any` TypeScript | ✅ typecheck limpio API + Web |
 | CI GitHub Actions verde | ✅ `.github/workflows/ci.yml` |
-| `DEPLOY.md` + README + install.sh actualizados | ✅ Fase 12 |
-| 171 bugs corregidos (CRITICAL+HIGH+MEDIUM+LOW) | ✅ Fase 12 |
+| `DEPLOY.md` + README + install.sh actualizados | ✅ Fase 12 + Fase 13 |
+| 171 bugs corregidos + 6 fixes críticos de producción | ✅ Fase 12 + Fase 13 |
 | Seguridad: Helmet CSP + CORS restringido + rate limit | ✅ Fase 12 |
 
 ### Comandos de verificación rápida

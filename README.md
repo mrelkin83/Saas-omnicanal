@@ -50,26 +50,26 @@ SaaS multi-tenant para negocios colombianos: inbox unificado con WhatsApp, Insta
 **Seguridad:** @fastify/helmet (CSP), CORS restringido en producción, rate limiting por tenant/IP, Zod error sanitization  
 **UI:** Tailwind CSS 3.4 + Design System "Obsidian Glass" (modo oscuro/claro) + Lucide React icons  
 **Pagos:** Wompi sandbox/producción (Colombia)  
-**WhatsApp:** Evolution API v2.2.3 (Baileys)  
-**Instagram:** instagrapi via FastAPI bridge en Python  
-**Facebook:** fca-unofficial (MQTT listener)  
-**TikTok:** Scraper con polling cada 60s  
+**WhatsApp:** Evolution API v2.2.3 (Baileys) — QR scan, SSE en tiempo real  
+**Instagram:** instagrapi via FastAPI bridge en Python — usuario/contraseña + 2FA  
+**Facebook:** fca-unofficial (MQTT listener) — **login automático email/password + persistencia de sesión**  
+**TikTok:** Scraper con polling cada 60s — **bookmarklet de extracción automática de cookies**  
 **IA:** OpenAI SDK — soporte OpenAI y Groq via `baseURL`, timeout 15s  
 
 ---
 
 ## Estado del proyecto
 
-✅ **Auditoría forense completa realizada** — 171 issues identificados y corregidos:
+✅ **Auditoría forense completa realizada** — 171 issues identificados y corregidos + 6 fixes críticos de producción:
 
 | Severidad | Cantidad | Estado |
 |-----------|----------|--------|
-| CRITICAL | 13 | ✅ Todos corregidos |
+| CRITICAL | 13 + 6 | ✅ Todos corregidos |
 | HIGH | 55 | ✅ Todos corregidos |
 | MEDIUM | 57 | ✅ Todos corregidos |
 | LOW | 29 | ✅ Todos corregidos |
 
-**Correcciones principales:**
+**Correcciones principales (Fase 12 — 171 bugs):**
 - Race conditions atómicas (Redis multi/exec, `onConflictDoUpdate`, `onConflictDoNothing`)
 - Seguridad: JWT payload validado con Zod, Helmet + CSP, CORS restringido en producción
 - Wompi: firma HMAC verificada, lookup por `reference`, 404 para pagos inexistentes
@@ -77,6 +77,14 @@ SaaS multi-tenant para negocios colombianos: inbox unificado con WhatsApp, Insta
 - MCP: productos gratis aceptados, stock validado, fechas futuras obligatorias, JSON extractor robusto
 - Frontend: SSE sin leaks, modal con focus trap, toast errors en todos los catches
 - DB: índices faltantes añadidos en products, orders, appointments, campaigns
+
+**Fixes críticos de producción (Fase 13):**
+- Migración `0004_oval_stryfe.sql`: `UNIQUE INDEX` en `channel_sessions` corrige error 500 de WhatsApp en DB frescas
+- Bug MCP `capabilities=[]`: filtraba todos los servidores de negocio → ahora retorna todos cuando capabilities está vacío
+- LLM apiKey vacío: validación explícita con mensaje actionable que guía a Integraciones
+- Integraciones visible en Settings + webhook Wompi con `tenantId` real
+- Facebook: login automático email/password + 2FA + persistencia de appState en DB
+- TikTok: bookmarklet de extracción automática de cookies con un clic
 
 ---
 
