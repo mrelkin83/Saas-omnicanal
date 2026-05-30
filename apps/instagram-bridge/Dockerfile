@@ -2,10 +2,11 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Pillow / instagrapi need system libraries for image processing
+# Pillow / instagrapi need system libraries for image processing.
+# Only install the essential ones that exist across Debian releases.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libjpeg-dev zlib1g-dev libfreetype6-dev liblcms2-dev libopenjp2-7-dev \
-    libtiff-dev libwebp-dev tcl-dev tk-dev harfbuzz-dev fribidi-dev \
+    libjpeg-dev zlib1g-dev libfreetype6-dev liblcms2-dev \
+    libopenjp2-7-dev libtiff-dev libwebp-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
