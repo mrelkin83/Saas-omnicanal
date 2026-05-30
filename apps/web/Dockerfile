@@ -25,6 +25,7 @@ RUN pnpm --filter @saas/shared build
 # Build Next.js (uses output: 'standalone' from next.config.mjs)
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NODE_ENV=production
 
 RUN pnpm --filter @app/web build
 

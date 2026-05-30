@@ -1,4 +1,3 @@
-import '../env.js';
 import bcrypt from 'bcryptjs';
 import { db, superadminUsers, eq } from '@saas/db';
 
@@ -7,6 +6,11 @@ const PASSWORD = process.argv[3] ?? 'Admin123!';
 const FULL_NAME = process.argv[4] ?? 'Super Admin';
 
 async function main(): Promise<void> {
+  if (!process.env['DATABASE_URL']) {
+    console.error('[create-superadmin] DATABASE_URL environment variable is required');
+    process.exit(1);
+  }
+
   const existing = await db.select({ id: superadminUsers.id }).from(superadminUsers).where(eq(superadminUsers.email, EMAIL));
   if (existing.length > 0) {
     console.log(`Superadmin with email ${EMAIL} already exists.`);

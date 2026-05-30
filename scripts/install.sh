@@ -213,11 +213,21 @@ clone_repo() {
 generate_env() {
   header "Generando .env"
 
-  # Idempotencia: si ya existe un .env, preservarlo (evita sobrescribir secretos en produccion)
+  # Idempotencia: si ya existe un .env, preservar secretos pero actualizar dominio si cambio
   if [[ -f "$INSTALL_DIR/.env" ]]; then
-    warn "Usando .env existente — para regenerar: rm $INSTALL_DIR/.env y vuelve a ejecutar"
-    # shellcheck source=/dev/null
-    source "$INSTALL_DIR/.env" 2>/dev/null || true
+    local existing_domain
+    existing_domain=$(grep '^DOMAIN=' "$INSTALL_DIR/.env" | cut -d'=' -f2- | tr -d '"' | tr -d "'" || true)
+    if [[ -n "$existing_domain" && "$existing_domain" != "$DOMAIN" ]]; then
+      warn "Dominio diferente al .env existente ($existing_domain -> $DOMAIN)"
+      warn "Actualizando solo DOMAIN, API_BASE_URL, WEB_BASE_URL y CORS_ALLOWED_ORIGINS..."
+      sed -i "s|^DOMAIN=.*|DOMAIN=${DOMAIN}|" "$INSTALL_DIR/.env"
+      sed -i "s|^API_BASE_URL=.*|API_BASE_URL=https://${DOMAIN}|" "$INSTALL_DIR/.env"
+      sed -i "s|^WEB_BASE_URL=.*|WEB_BASE_URL=https://${DOMAIN}|" "$INSTALL_DIR/.env"
+      sed -i "s|^CORS_ALLOWED_ORIGINS=.*|CORS_ALLOWED_ORIGINS=https://${DOMAIN}|" "$INSTALL_DIR/.env"
+      log ".env actualizado con nuevo dominio (secretos preservados)"
+    else
+      log "Usando .env existente — secretos preservados"
+    fi
     return
   fi
 
@@ -318,9 +328,7 @@ start_services() {
   # Esperar API (incluye migraciones automaticas en startup)
   info "Esperando API (incluye migraciones en primer arranque)..."
   n=0
-  until dc exec -T api node --input-type=module \
-    -e 'const r=await fetch("http://localhost:3001/health").catch(()=>null);process.exit(r?.ok?0:1)' \
-    >/dev/null 2>&1; do
+  until dc exec -T api wget -qO- http://localhost:3001/health >/dev/null 2>&1; do
     n=$((n+1))
     if [[ $n -ge 120 ]]; then
       echo ""
